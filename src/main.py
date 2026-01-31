@@ -1,25 +1,41 @@
+# src/main.py
+# Responsibility: Application entry point. Configures and launches the FastAPI app.
+
+import uvicorn
 from fastapi import FastAPI
 from src.routers import search, admin
 from src.config.settings import settings
 
-# Initialize FastAPI application
-app = FastAPI(
-    title="PGroonga Search Engine",
-    description="Production-ready search engine using PGroonga and Redis",
-    version="1.1.0"
-)
-
-# Include routers
-app.include_router(search.router)
-app.include_router(admin.router)
-
-@app.get("/health")
-def health_check():
+def create_app() -> FastAPI:
     """
-    Simple health check endpoint.
+    Factory function to create and configure the FastAPI application.
     """
-    return {"status": "ok"}
+    app = FastAPI(
+        title="PGroonga Search Engine",
+        description="Scalable search engine using PGroonga, Redis, and RQ.",
+        version="2.0.0",
+        debug=settings.SERVER.DEBUG
+    )
+
+    # Register Routers
+    app.include_router(search.router)
+    app.include_router(admin.router)
+
+    # Health Check
+    @app.get("/health", tags=["System"])
+    def health_check():
+        return {"status": "ok", "version": "2.0.0"}
+
+    return app
+
+# Application instance
+app = create_app()
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host=settings.UVICORN_HOST, port=settings.UVICORN_PORT)
+    # Local development entry point
+    uvicorn.run(
+        "src.main:app", 
+        host=settings.SERVER.HOST, 
+        port=settings.SERVER.PORT, 
+        reload=settings.SERVER.DEBUG
+    )
