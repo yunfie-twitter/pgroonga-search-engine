@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin, urlparse, urlunparse
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from src.crawler.link_extractor import LinkExtractor
 
@@ -61,16 +61,22 @@ class DefaultHTMLParser(BaseParser):
     def _remove_noise(self, soup: BeautifulSoup) -> None:
         for tag_name in self.NOISE_TAGS:
             for tag in soup.find_all(tag_name):
-                tag.decompose()
+                if isinstance(tag, Tag):
+                    tag.decompose()
 
     def _extract_title(self, soup: BeautifulSoup) -> str:
         tag = soup.find('title')
-        if tag:
+        if isinstance(tag, Tag):
             return tag.get_text(strip=True)
         return "No Title"
 
     def _extract_content(self, soup: BeautifulSoup) -> str:
         target = soup.find('main') or soup.find('article') or soup.find('body') or soup
+        # target can be Tag or BeautifulSoup (which is strictly not Tag but behaves like one for get_text)
+        # However, for mypy safety with 'find', we assume it returns Tag | NavigableString | None.
+        if target and not isinstance(target, (Tag, BeautifulSoup)):
+            return ""
+            
         text = target.get_text(separator=' ')
         normalized = re.sub(r'\s+', ' ', text).strip()
         return normalized
@@ -81,7 +87,14 @@ class DefaultHTMLParser(BaseParser):
         position_counter = 0
 
         for img in img_tags:
+            if not isinstance(img, Tag):
+                continue
+                
             src = img.get('data-src') or img.get('src')
+            # Normalize src if it is a list (e.g. from some parsers/attrs)
+            if isinstance(src, list):
+                src = " ".join(src)
+                
             if not src:
                 continue
 
@@ -97,7 +110,11 @@ class DefaultHTMLParser(BaseParser):
                 continue
 
             img_hash = self._generate_image_hash(abs_url)
-            alt = img.get('alt', '').strip() or None
+            
+            alt_val = img.get('alt', '')
+            if isinstance(alt_val, list):
+                alt_val = " ".join(alt_val)
+            alt = alt_val.strip() if alt_val else None
 
             position_counter += 1
             images.append({
@@ -134,8 +151,11 @@ class DefaultHTMLParser(BaseParser):
         if not val:
             return None
         try:
-            return int(str(val).lower().replace('px', ''))
-        except ValueError:
+            val_str = str(val)
+            if isinstance(val, list):
+                val_str = str(val[0])
+            return int(val_str.lower().replace('px', ''))
+        except (ValueError, IndexError):
             return None
 
     def _extract_date(self, soup: BeautifulSoup) -> Optional[str]:
@@ -146,14 +166,22 @@ class DefaultHTMLParser(BaseParser):
         ]
         for attrs in meta_targets:
             tag = soup.find("meta", attrs=attrs)
-            if tag and tag.get("content"):
-                return tag.get("content")
+            if isinstance(tag, Tag):
+                content = tag.get("content")
+                if isinstance(content, list):
+                    return " ".join(content)
+                if content:
+                    return content
         return None
 
     def _extract_category(self, url: str, soup: BeautifulSoup) -> str:
         tag = soup.find("meta", {"property": "article:section"})
-        if tag and tag.get("content"):
-            return tag.get("content")
+        if isinstance(tag, Tag):
+            content = tag.get("content")
+            if isinstance(content, list):
+                return " ".join(content)
+            if content:
+                return content
 
         path = urlparse(url).path
         parts = [p for p in path.split('/') if p]
