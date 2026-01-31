@@ -38,8 +38,9 @@ jobs:
 
     - name: Type check with Mypy
       run: |
-        # Run static type checking
-        mypy .
+        # Run static type checking with explicit package bases to avoid duplicate module errors in src layout
+        # We target 'src' specifically to match the import structure 'from src.xxx'
+        mypy --explicit-package-bases src
 
     - name: Run Tests with Coverage
       run: |
