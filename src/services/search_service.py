@@ -1,5 +1,5 @@
 from psycopg2.extras import RealDictCursor
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from functools import lru_cache
 
 from src.config.settings import settings
@@ -7,11 +7,12 @@ from src.services.query_normalizer import QueryNormalizer
 from src.services.synonym_expander import SynonymExpander
 from src.services.redis_cache import RedisCacheManager
 from src.services.db import get_db_connection
+from src.snippet.snippet_generator import SnippetGenerator
 
 class SearchService:
     """
     Orchestrates the search workflow.
-    Integrates Normalization -> Expansion -> Cache -> Database.
+    Integrates Normalization -> Expansion -> Cache -> Database -> Snippet Generation.
     """
 
     def __init__(self):
@@ -22,14 +23,6 @@ class SearchService:
     def search(self, raw_query: str, filters: Dict[str, Any], limit: int) -> List[Dict]:
         """
         Executes the search logic.
-
-        Args:
-            raw_query (str): User input.
-            filters (dict): Filter criteria.
-            limit (int): Max results.
-
-        Returns:
-            list: List of result dictionaries.
         """
         # 1. Normalize
         normalized_query = QueryNormalizer.normalize(raw_query)
@@ -43,9 +36,19 @@ class SearchService:
             return cached_results
 
         # 4. DB Search (PGroonga)
-        results = self._execute_db_search(expanded_query, filters, limit)
+        raw_results = self._execute_db_search(expanded_query, filters, limit)
 
-        # 5. Save to Cache
+        # 5. Process Snippets dynamically
+        results = []
+        for row in raw_results:
+            row['snippet'] = SnippetGenerator.generate(row['content'], normalized_query)
+            # Remove full content to reduce payload size if desired, 
+            # though caching might want full content? 
+            # Requirements say "Response... snippet". Usually we don't return full text.
+            del row['content']
+            results.append(row)
+
+        # 6. Save to Cache
         self.cache.set_result(normalized_query, filters, limit, results)
 
         return results
@@ -57,12 +60,12 @@ class SearchService:
         conn = get_db_connection()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                # Base Query using PGroonga operator &@
+                # Select full content to generate snippet in Python
                 sql = """
                     SELECT 
                         url, 
                         title, 
-                        content as snippet,
+                        content,
                         pgroonga_score(tableoid, ctid) AS score
                     FROM web_pages
                     WHERE (title || ' ' || content) &@ %s
