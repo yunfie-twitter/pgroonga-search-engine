@@ -10,14 +10,16 @@ from src.services.db import DBTransaction
 class Indexer:
     """
     Manages database indexing operations.
-    Coordinatse page data, image assets, and search text consolidation.
+    Coordinates page data, image assets, and search text consolidation.
     """
 
     def upsert_page(self, page_data: Dict) -> bool:
         return self.upsert_batch([page_data]) == 1
 
     def upsert_batch(self, pages: List[Dict]) -> int:
-        if not pages: return 0
+        if not pages:
+            return 0
+
         success_count = 0
 
         # 1. Image Asset Upsert (Global unique check)
@@ -27,8 +29,7 @@ class Indexer:
             ON CONFLICT (image_hash) DO NOTHING
         """
 
-        # 2. Page Upsert (with representative_image_id placeholder logic)
-        # Note: We compute search_text by concatenating Title + Content + Alt Texts
+        # 2. Page Upsert
         sql_page = """
             INSERT INTO web_pages (
                 url, title, content, category, published_at, updated_at, crawled_at,
@@ -64,46 +65,62 @@ class Indexer:
             with DBTransaction() as conn:
                 with conn.cursor() as cur:
                     for page in pages:
-                        page_url = page['url']
-                        images = page.get('images', [])
+                        page_url = page["url"]
+                        images = page.get("images", [])
 
                         # A. Register Unique Images
                         for img in images:
-                            cur.execute(sql_image_asset, (img['hash'], img['url']))
+                            cur.execute(
+                                sql_image_asset,
+                                (img["hash"], img["url"]),
+                            )
 
-                        # B. Select Representative Image Hash
+                        # B. Select Representative Image
                         rep_hash = ImageSelector.select_best_image(images)
                         rep_id = None
                         if rep_hash:
-                            # Resolve Hash to ID immediately for FK
-                            cur.execute("SELECT id FROM images WHERE image_hash = %s", (rep_hash,))
+                            cur.execute(
+                                "SELECT id FROM images WHERE image_hash = %s",
+                                (rep_hash,),
+                            )
                             res = cur.fetchone()
-                            if res: rep_id = res[0]
+                            if res:
+                                rep_id = res[0]
 
-                        # C. Construct Search Text (Title + Content + Alts)
-                        alt_texts = [img['alt'] for img in images if img.get('alt')]
-                        search_text_body = f"{page['title']}\n{page['content']}\n{' '.join(alt_texts)}"
+                        # C. Construct Search Text
+                        alt_texts = [img["alt"] for img in images if img.get("alt")]
+                        search_text_body = (
+                            f"{page['title']}\n"
+                            f"{page['content']}\n"
+                            f"{' '.join(alt_texts)}"
+                        )
 
                         # D. Upsert Page
-                        cur.execute(sql_page, (
-                            page_url,
-                            page['title'],
-                            page['content'],
-                            page.get('category', 'general'),
-                            page.get('published_at'),
-                            rep_id,
-                            search_text_body
-                        ))
+                        cur.execute(
+                            sql_page,
+                            (
+                                page_url,
+                                page["title"],
+                                page["content"],
+                                page.get("category", "general"),
+                                page.get("published_at"),
+                                rep_id,
+                                search_text_body,
+                            ),
+                        )
 
                         # E. Sync Page-Image Links
                         cur.execute(sql_delete_links, (page_url,))
                         for img in images:
-                            cur.execute(sql_link_image, (
-                                page_url,
-                                img['hash'],
-                                img.get('alt'),
-                                img.get('position')
-                            ))
+                            cur.execute(
+                                sql_link_image,
+                                (
+                                    page_url,
+                                    img["hash"],
+                                    img.get("alt"),
+                                    img.get("position"),
+                                ),
+                            )
 
                         success_count += 1
 
