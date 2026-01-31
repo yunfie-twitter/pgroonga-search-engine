@@ -76,7 +76,7 @@ class DefaultHTMLParser(BaseParser):
         # However, for mypy safety with 'find', we assume it returns Tag | NavigableString | None.
         if target and not isinstance(target, (Tag, BeautifulSoup)):
             return ""
-            
+
         text = target.get_text(separator=' ')
         normalized = re.sub(r'\s+', ' ', text).strip()
         return normalized
@@ -89,12 +89,12 @@ class DefaultHTMLParser(BaseParser):
         for img in img_tags:
             if not isinstance(img, Tag):
                 continue
-                
+
             src = img.get('data-src') or img.get('src')
             # Normalize src if it is a list (e.g. from some parsers/attrs)
             if isinstance(src, list):
                 src = " ".join(src)
-                
+
             if not src:
                 continue
 
@@ -110,7 +110,7 @@ class DefaultHTMLParser(BaseParser):
                 continue
 
             img_hash = self._generate_image_hash(abs_url)
-            
+
             alt_val = img.get('alt', '')
             if isinstance(alt_val, list):
                 alt_val = " ".join(alt_val)
