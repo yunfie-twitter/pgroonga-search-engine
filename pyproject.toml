@@ -1,0 +1,50 @@
+[tool.pytest.ini_options]
+# Add src to pythonpath to avoid import errors
+pythonpath = ["src"]
+testpaths = ["tests"]
+# Handle async tests automatically
+asyncio_mode = "auto"
+# Treat warnings as warnings, not errors (to avoid noise from deps)
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+]
+
+[tool.ruff]
+# Target Python version
+target-version = "py311"
+# Line length matching standard conventions
+line-length = 120
+# Enable Pyflakes (F), pycodestyle (E, W), and isort (I)
+select = ["F", "E", "W", "I"]
+ignore = []
+
+[tool.ruff.per-file-ignores]
+# Ignore unused imports in init files
+"__init__.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.11"
+# Be lenient with missing imports (especially for libraries without stubs)
+ignore_missing_imports = true
+# Enforce Optional checks
+strict_optional = true
+# Don't fail on untyped definitions, but check inside them
+check_untyped_defs = true
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "src/sql/*",
+    "*/__init__.py"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "pass",
+    "except ImportError:",
+]
