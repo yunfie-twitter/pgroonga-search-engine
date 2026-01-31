@@ -154,12 +154,17 @@ class CrawlRepository:
 
     def mark_blocked(self, url: str, reason: str):
         """Marks a URL as blocked."""
+        sql = """
+            UPDATE crawl_urls
+            SET status = 'blocked',
+                blocked_reason = %s,
+                updated_at = NOW()
+            WHERE url = %s
+        """
         try:
             with DBTransaction() as conn:
                 with conn.cursor() as cur:
-                    cur.execute(
-                        "UPDATE crawl_urls SET status = 'blocked', blocked_reason = %s, updated_at = NOW() WHERE url = %s",
-                        (reason, url),
-                    )
+                    cur.execute(sql, (reason, url))
         except Exception:
             pass
+
