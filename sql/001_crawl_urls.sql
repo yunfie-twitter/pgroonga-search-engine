@@ -1,9 +1,9 @@
--- Crawler URL Management (Robust Migration)
--- クローラーの状態遷移と優先度を管理します。
--- 何度実行しても安全（Idempotent）であり、途中状態のDBも修復可能な設計です。
+-- Crawler URL Management (Definitive Migration)
+-- アプリ起動前に crawl_urls テーブルのスキーマを完全に保証するスクリプト。
+-- 途中まで作成されたテーブル、カラム不足、インデックス不足など、あらゆる状態から復旧します。
 
--- 1. ENUM Type Definition (Safe Creation)
--- 既存のENUM型がある場合は何もしない
+-- 1. ENUM Type Definition (Safe & Idempotent)
+-- 既存のENUM型がある場合は何もしない（エラーを出さない）
 DO $$ 
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'crawl_status') THEN
@@ -18,16 +18,17 @@ BEGIN
     END IF;
 END $$;
 
--- 2. Create Table (Basic Structure)
--- 主キーとなる url と domain だけを持つ最小構成で作成
+-- 2. Create Table (Minimal Base)
+-- 主キーとなる url と domain だけを持つ最小構成で作成。
+-- すでにテーブルがある場合は何もしない。
 CREATE TABLE IF NOT EXISTS crawl_urls (
     url TEXT PRIMARY KEY,
     domain TEXT NOT NULL
 );
 
 -- 3. Add Columns Safely (Migration Logic)
--- 各カラムの存在を確認し、なければ追加します。
--- これにより、テーブルだけあってカラムがない状態からも復旧可能です。
+-- 各カラムについて「存在しなければ追加する」処理を実行します。
+-- これにより、status カラムが無い古いDBも自動的に修復されます。
 
 DO $$ 
 BEGIN
@@ -36,8 +37,10 @@ BEGIN
         ALTER TABLE crawl_urls ADD COLUMN depth INTEGER NOT NULL DEFAULT 0;
     END IF;
 
-    -- status (Depends on crawl_status ENUM)
+    -- status (Vital Column)
+    -- アプリケーションの動作に必須なため、必ず NOT NULL DEFAULT 'pending' で追加します。
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='crawl_urls' AND column_name='status') THEN
+        -- ENUM型 'crawl_status' を使用
         ALTER TABLE crawl_urls ADD COLUMN status crawl_status NOT NULL DEFAULT 'pending';
     END IF;
 
@@ -85,15 +88,14 @@ END $$;
 
 -- 4. Create Indexes (Safe & Dependent on Columns)
 -- カラム追加が確実に行われた後にインデックスを作成します。
--- IF NOT EXISTS が使えない複雑な条件付きインデックスは、pg_indexes をチェックしてから作成します。
+-- 部分インデックス (WHERE status IN ...) は status カラムが必須なため、このタイミングで行うのが安全です。
 
 -- Domain Status Index
 CREATE INDEX IF NOT EXISTS idx_crawl_urls_domain_status 
 ON crawl_urls (domain, status);
 
 -- Priority Queue Index
--- status カラムを用いた部分インデックス
--- このインデックスが既に存在するか確認してから作成（CREATE INDEX IF NOT EXISTS は名前重複のみチェックするため）
+-- 既に同名のインデックスがある場合はスキップします
 DO $$
 BEGIN
     IF NOT EXISTS (
