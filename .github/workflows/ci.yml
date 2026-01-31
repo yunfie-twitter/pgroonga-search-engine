@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  quality:
+    name: Quality Assurance
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # Install dev tools
+        pip install pytest pytest-asyncio coverage ruff mypy types-redis types-requests types-beautifulsoup4
+        # Install project dependencies (Attempting requirements.txt if exists, else fallback to manual list of known deps)
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        # Ensure core libs are present even if requirements.txt is missing/incomplete in this context
+        pip install fastapi uvicorn httpx beautifulsoup4 redis pydantic pydantic-settings psycopg2-binary rq
+
+    - name: Lint with Ruff
+      run: |
+        # Check for errors and enforce formatting
+        ruff check .
+
+    - name: Type check with Mypy
+      run: |
+        # Run static type checking
+        mypy .
+
+    - name: Run Tests with Coverage
+      run: |
+        # Run tests and generate coverage report
+        # Fails if any test fails
+        coverage run -m pytest
+        coverage report -m
