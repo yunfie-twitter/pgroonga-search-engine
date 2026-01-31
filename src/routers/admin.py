@@ -1,6 +1,9 @@
-from fastapi import APIRouter, HTTPException
+# src/routers/admin.py
+# Responsibility: Handles administration endpoints, specifically for triggering crawls.
+
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, HttpUrl
-from typing import List
+from typing import List, Dict
 
 from src.crawler.async_crawler import AsyncCrawlerClient
 
@@ -9,6 +12,7 @@ router = APIRouter(
     tags=["Admin"]
 )
 
+# --- Pydantic Models ---
 class CrawlRequest(BaseModel):
     urls: List[HttpUrl]
 
@@ -17,18 +21,31 @@ class CrawlResponse(BaseModel):
     target_count: int
     job_ids: List[str]
 
+# --- Dependency Injection ---
+def get_async_client() -> AsyncCrawlerClient:
+    """Provider for AsyncCrawlerClient."""
+    return AsyncCrawlerClient()
+
+# --- Endpoints ---
 @router.post("/crawl", response_model=CrawlResponse)
-def trigger_crawl(req: CrawlRequest):
+def trigger_crawl_endpoint(
+    req: CrawlRequest, 
+    client: AsyncCrawlerClient = Depends(get_async_client)
+):
     """
-    Triggers an asynchronous crawl by enqueuing jobs to Redis Queue.
+    Queues a list of URLs for asynchronous crawling.
     """
+    # Convert Pydantic HttpUrl to strings
     url_strings = [str(u) for u in req.urls]
     
     if not url_strings:
         raise HTTPException(status_code=400, detail="No URLs provided")
 
-    client = AsyncCrawlerClient()
-    job_ids = client.enqueue_jobs(url_strings)
+    try:
+        job_ids = client.enqueue_jobs(url_strings)
+    except Exception as e:
+        print(f"Failed to enqueue jobs: {e}")
+        raise HTTPException(status_code=503, detail="Queue service unavailable")
 
     return CrawlResponse(
         message="Crawl jobs queued successfully",
@@ -37,9 +54,13 @@ def trigger_crawl(req: CrawlRequest):
     )
 
 @router.get("/crawl/status")
-def get_crawl_status():
+def get_crawl_status_endpoint(
+    client: AsyncCrawlerClient = Depends(get_async_client)
+):
     """
-    Returns the status of the crawler queue.
+    Retrieves the current status of the crawl job queue.
     """
-    client = AsyncCrawlerClient()
-    return client.get_queue_info()
+    try:
+        return client.get_queue_info()
+    except Exception as e:
+        raise HTTPException(status_code=503, detail="Could not retrieve queue info")
