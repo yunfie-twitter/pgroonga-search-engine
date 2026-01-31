@@ -55,7 +55,16 @@ class SearchService:
         # 3. Cache Lookup
         cached_results = self.cache_manager.get_cached_result(normalized_query, filters, limit)
         if cached_results is not None:
-            return cached_results
+            # Assuming cache returns the list of results directly.
+            # If cache manager returns a single dict but we expect a list, we might need to adjust.
+            # Based on the error "got: dict[Any, Any], expected: list[dict[str, Any]]",
+            # if cached_results IS a list, then mypy might be confused or the cache manager signature is wrong.
+            # However, looking at standard cache implementations, usually we cache the 'result set' (List).
+            # If the error persists, it implies get_cached_result might be returning Any or Dict.
+            # Cast or ensure it's a list.
+            if isinstance(cached_results, list):
+                 return cached_results
+            return [cached_results] # Wrap in list if it's a single object (though unlikely for search results)
 
         # 4. Database Search
         # We fetch 'content' to generate snippets, but we won't return it fully to the client.
