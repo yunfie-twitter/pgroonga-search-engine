@@ -38,18 +38,13 @@ class CrawlRepository:
             self._register_url(url, next_depth, domain)
 
     def _register_url(self, url: str, depth: int, domain: str):
-        """
-        Internal registration logic with policy checks.
-        """
-        # 1. Anomaly Check
+        """Internal registration logic with policy checks."""
         if self.detector.is_anomalous(url):
             return
 
-        # 2. Robots.txt Check
         if not self.robots.can_fetch(url):
             return
 
-        # 3. Score Calculation
         score = settings.CRAWLER.BASE_SCORE - (depth * settings.CRAWLER.DEPTH_PENALTY)
 
         sql = """
@@ -65,48 +60,41 @@ class CrawlRepository:
             print(f"[Repository] Registration failed for {url}: {e}")
 
     def mark_crawled(self, url: str, success: bool):
-        """
-        Updates URL status, handles error counting, and schedules next crawl.
-        """
+        """Updates URL status, handles error counting, and schedules next crawl."""
         try:
             with DBTransaction() as conn:
                 with conn.cursor() as cur:
-                    # Fetch current state
                     cur.execute(
                         "SELECT error_count, depth, score FROM crawl_urls WHERE url = %s",
-                        (url,)
+                        (url,),
                     )
                     row = cur.fetchone()
-<<<<<<< Updated upstream
                     if not row:
                         return
-=======
-                    if not row: return
->>>>>>> Stashed changes
 
                     current_errors, depth, current_score = row
 
                     if success:
-                        status = 'done'
+                        status = "done"
                         interval = settings.CRAWLER.DEFAULT_INTERVAL_SECONDS
                         new_errors = 0
-                        new_score = settings.CRAWLER.BASE_SCORE - (depth * settings.CRAWLER.DEPTH_PENALTY)
+                        new_score = (
+                            settings.CRAWLER.BASE_SCORE
+                            - (depth * settings.CRAWLER.DEPTH_PENALTY)
+                        )
 
-                        # Update stats
                         domain = urlparse(url).netloc
                         self.detector.increment_domain_count(domain)
                     else:
-                        status = 'error'
+                        status = "error"
                         interval = settings.CRAWLER.ERROR_INTERVAL_SECONDS
                         new_errors = current_errors + 1
                         new_score = current_score - settings.CRAWLER.ERROR_PENALTY
 
-                        # Max Retries Check
                         if new_errors > settings.CRAWLER.MAX_RETRIES:
                             self._delete_url(cur, url)
                             return
 
-                    # Update Status
                     sql = """
                         UPDATE crawl_urls
                         SET status = %s,
@@ -118,7 +106,6 @@ class CrawlRepository:
                         WHERE url = %s
                     """
                     cur.execute(sql, (status, interval, new_errors, new_score, url))
-
         except Exception as e:
             print(f"[Repository] Status update failed for {url}: {e}")
 
@@ -127,11 +114,11 @@ class CrawlRepository:
         print(f"[Repository] Deleting {url} due to max errors.")
         cur.execute(
             "UPDATE crawl_urls SET status = 'deleted', deleted_at = NOW() WHERE url = %s",
-            (url,)
+            (url,),
         )
         cur.execute(
             "DELETE FROM web_pages WHERE url = %s",
-            (url,)
+            (url,),
         )
 
     def fetch_pending_jobs(self, limit: int) -> List[Tuple]:
@@ -159,7 +146,7 @@ class CrawlRepository:
                 with conn.cursor() as cur:
                     cur.execute(
                         "UPDATE crawl_urls SET status = 'crawling', updated_at = NOW() WHERE url = %s",
-                        (url,)
+                        (url,),
                     )
             return True
         except Exception:
@@ -172,7 +159,7 @@ class CrawlRepository:
                 with conn.cursor() as cur:
                     cur.execute(
                         "UPDATE crawl_urls SET status = 'blocked', blocked_reason = %s, updated_at = NOW() WHERE url = %s",
-                        (reason, url)
+                        (reason, url),
                     )
         except Exception:
             pass
