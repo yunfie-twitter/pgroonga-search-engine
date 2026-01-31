@@ -2,7 +2,7 @@
 # Responsibility: Orchestrates the core search logic (Normalization -> Expansion -> Cache -> DB -> Snippet).
 
 from functools import lru_cache
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 
 from psycopg2.extras import RealDictCursor
 
@@ -24,7 +24,7 @@ class SearchService:
         self.expander = SynonymExpander(settings.SYNONYM_FILE_PATH)
         self.cache_manager = RedisCacheManager()
 
-    def execute_search(self, raw_query: str, filters: Dict[str, Any], limit: int) -> List[Dict]:
+    def execute_search(self, raw_query: str, filters: Dict[str, Any], limit: int) -> List[Dict[str, Any]]:
         """
         Executes a search query with full pipeline processing.
 
@@ -82,7 +82,7 @@ class SearchService:
 
         return processed_results
 
-    def _query_database(self, pgroonga_query: str, filters: Dict[str, Any], limit: int) -> List[Dict]:
+    def _query_database(self, pgroonga_query: str, filters: Dict[str, Any], limit: int) -> List[Dict[str, Any]]:
         """
         Executes the raw SQL query against PostgreSQL using PGroonga.
         """
@@ -95,20 +95,20 @@ class SearchService:
             FROM web_pages
             WHERE (title || ' ' || content) &@ %s
         """
-        params = [pgroonga_query]
+        params: List[Union[str, int]] = [pgroonga_query]
 
         # Dynamic SQL construction for filters
         if "category" in filters:
             sql += " AND category = %s"
-            params.append(filters["category"])
+            params.append(str(filters["category"]))
 
         if "from" in filters:
             sql += " AND published_at >= %s"
-            params.append(filters["from"])
+            params.append(str(filters["from"]))
 
         if "to" in filters:
             sql += " AND published_at <= %s"
-            params.append(filters["to"])
+            params.append(str(filters["to"]))
 
         # Ordering and limiting
         sql += " ORDER BY score DESC LIMIT %s"
@@ -118,6 +118,7 @@ class SearchService:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(sql, tuple(params))
                 return [dict(row) for row in cur.fetchall()]
+
 
 @lru_cache()
 def get_search_service() -> SearchService:
