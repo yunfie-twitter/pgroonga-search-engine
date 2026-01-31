@@ -23,14 +23,14 @@ class CrawlResponse(BaseModel):
 @router.post("/crawl", response_model=CrawlResponse)
 def trigger_crawl_endpoint(req: CrawlRequest):
     """
-    Registers seed URLs to the Crawl Scheduler.
-    Actual crawling will be picked up by the autonomous worker.
+    Registers seed URLs to the Crawl system.
     """
     url_strings = [str(u) for u in req.urls]
     
     if not url_strings:
         raise HTTPException(status_code=400, detail="No URLs provided")
 
+    # Scheduler acts as the high-level interface
     scheduler = CrawlScheduler()
     for url in url_strings:
         scheduler.schedule_initial_url(url)
