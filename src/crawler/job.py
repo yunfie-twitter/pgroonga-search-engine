@@ -3,41 +3,32 @@
 
 from src.crawler.crawler import WebCrawler
 from src.indexer.indexer import Indexer
-from src.crawler.frequency import CrawlFrequencyManager
+from src.crawler.scheduler import CrawlScheduler
 
-def perform_crawl_job(url: str) -> None:
+def perform_crawl_job(url: str, depth: int = 0) -> None:
     """
     Executes the full crawl pipeline for a single URL.
-    This function is the entry point for the RQ worker.
-    
-    Pipeline:
-    1. Check Frequency limits.
-    2. Fetch & Parse Page.
-    3. Index content.
-    4. Update Metadata status.
     
     Args:
         url (str): The target URL to crawl.
+        depth (int): Current depth of the URL in the crawl tree.
     """
-    print(f"[Worker] Starting job for: {url}")
+    print(f"[Worker] Starting job for: {url} (Depth: {depth})")
     
-    # 1. Frequency Check
-    if not CrawlFrequencyManager.is_crawl_allowed(url):
-        print(f"[Worker] Skipped {url} due to frequency limits.")
-        return
+    scheduler = CrawlScheduler()
+    # Note: Frequency check is done by Scheduler before dispatch, 
+    # so we assume if we are here, we are allowed to crawl.
 
-    # 2. Web Crawling
+    # 1. Web Crawling
     crawler = WebCrawler()
     page_data = crawler.fetch_and_parse(url)
 
     if not page_data:
         print(f"[Worker] Failed to fetch/parse {url}")
-        CrawlFrequencyManager.update_crawl_status(
-            url, success=False, error_message="Network or Parser Error"
-        )
+        scheduler.mark_crawled(url, success=False)
         return
 
-    # 3. Indexing
+    # 2. Indexing
     indexer = Indexer()
     try:
         success = indexer.upsert_page(page_data)
@@ -45,15 +36,14 @@ def perform_crawl_job(url: str) -> None:
         print(f"[Worker] Indexing exception for {url}: {e}")
         success = False
 
-    # 4. Status Update
+    # 3. Recursive Link Discovery (Auto-Crawl)
     if success:
-        print(f"[Worker] Successfully indexed {url}")
-        CrawlFrequencyManager.update_crawl_status(url, success=True)
-    else:
-        print(f"[Worker] Failed to index {url}")
-        CrawlFrequencyManager.update_crawl_status(
-            url, success=False, error_message="Indexing Error"
-        )
+        links = page_data.get('links', [])
+        scheduler.process_discovered_links(links, parent_depth=depth)
 
-# Alias for backward compatibility if needed by existing queued jobs (though queue is transient)
+    # 4. Status Update
+    scheduler.mark_crawled(url, success=success)
+    print(f"[Worker] Finished {url}. Success: {success}")
+
+# Alias for compatibility
 perform_crawl = perform_crawl_job
