@@ -1,70 +1,88 @@
+# src/services/redis_cache.py
+# Responsibility: Handles all Redis-based caching operations for search results.
+
 import redis
 import json
 import hashlib
 from typing import Dict, Any, Optional
-
 from src.config.settings import settings
 
 class RedisCacheManager:
     """
-    Manages caching of search results in Redis.
-    Uses deterministic key generation to ensure cache hits for identical queries.
+    Manages caching of search results in Redis to reduce database load.
+    Ensures deterministic key generation based on query parameters.
     """
 
     def __init__(self):
         """
-        Initialize Redis connection using settings.
+        Initializes Redis connection using centralized settings.
+        decode_responses=True ensures we get strings back, not bytes.
         """
-        self.client = redis.from_url(settings.REDIS_URL, decode_responses=True)
-        self.ttl = settings.REDIS_TTL
+        self.client = redis.from_url(settings.REDIS.URL, decode_responses=True)
+        self.ttl_seconds = settings.REDIS.TTL_SECONDS
+
+    def get_cached_result(self, query: str, filters: Dict[str, Any], limit: int) -> Optional[Dict]:
+        """
+        Retrieves a search result from cache if it exists.
+        
+        Args:
+            query (str): The normalized search query.
+            filters (dict): Dictionary of applied filters.
+            limit (int): The maximum number of results requested.
+            
+        Returns:
+            Optional[Dict]: The cached result dict, or None if cache miss.
+        """
+        cache_key = self._generate_key(query, filters, limit)
+        try:
+            cached_data = self.client.get(cache_key)
+            if cached_data:
+                return json.loads(cached_data)
+        except (redis.RedisError, json.JSONDecodeError) as e:
+            # Log error but don't crash; treat as cache miss
+            print(f"[Redis] Cache fetch error: {e}")
+        
+        return None
+
+    def set_cached_result(self, query: str, filters: Dict[str, Any], limit: int, result: Any) -> None:
+        """
+        Stores a search result in Redis with a configured TTL.
+        
+        Args:
+            query (str): The normalized search query.
+            filters (dict): Dictionary of applied filters.
+            limit (int): The maximum number of results requested.
+            result (Any): The JSON-serializable result object to cache.
+        """
+        cache_key = self._generate_key(query, filters, limit)
+        try:
+            json_data = json.dumps(result)
+            self.client.setex(cache_key, self.ttl_seconds, json_data)
+        except (redis.RedisError, TypeError) as e:
+            print(f"[Redis] Cache write error: {e}")
 
     def _generate_key(self, query: str, filters: Dict[str, Any], limit: int) -> str:
         """
-        Generates a unique cache key based on all search parameters.
+        Generates a deterministic, unique cache key based on search parameters.
         
-        Format: search:{hash_of_params}
+        Key Format: "search:{sha256_hash}"
+        The hash is derived from a sorted JSON representation of input params.
         
         Args:
-            query (str): Normalized query string.
-            filters (dict): Filter parameters.
-            limit (int): Pagination limit.
-
+            query (str): Normalized query.
+            filters (dict): Filters.
+            limit (int): Limit.
+            
         Returns:
-            str: Redis key.
+            str: The SHA256 hash-based Redis key.
         """
         payload = {
             "q": query,
             "f": filters,
             "l": limit
         }
-        # sort_keys=True is CRITICAL for deterministic JSON serialization
-        serialized = json.dumps(payload, sort_keys=True)
-        key_hash = hashlib.sha256(serialized.encode('utf-8')).hexdigest()
+        # sort_keys=True is critical for deterministic hashing of dictionaries
+        serialized_payload = json.dumps(payload, sort_keys=True)
+        hash_digest = hashlib.sha256(serialized_payload.encode('utf-8')).hexdigest()
         
-        return f"search:{key_hash}"
-
-    def get_result(self, query: str, filters: Dict[str, Any], limit: int) -> Optional[Dict]:
-        """
-        Retrieves result from cache.
-        
-        Returns:
-            dict or None: Deserialized result if hit, else None.
-        """
-        key = self._generate_key(query, filters, limit)
-        data = self.client.get(key)
-        
-        if data:
-            try:
-                return json.loads(data)
-            except json.JSONDecodeError:
-                return None
-        return None
-
-    def set_result(self, query: str, filters: Dict[str, Any], limit: int, result: Any) -> None:
-        """
-        Saves result to cache with TTL.
-        """
-        key = self._generate_key(query, filters, limit)
-        # Assuming 'result' is a list of dicts (search results)
-        data = json.dumps(result)
-        self.client.setex(key, self.ttl, data)
+        return f"search:{hash_digest}"
