@@ -1,65 +1,68 @@
 version: '3.8'
 
 services:
-  # Database Service
-  # Uses PGroonga image which includes PostgreSQL + Groonga extension for fast full-text search.
   db:
     image: groonga/pgroonga:latest-alpine-15
-    container_name: search_db
+    volumes:
+      # SQL files in ./sql are automatically executed on first startup in alphabetical order
+      - ./sql:/docker-entrypoint-initdb.d:ro
+      - db_data:/var/lib/postgresql/data
     environment:
-      POSTGRES_DB: search_db
       POSTGRES_USER: search_user
       POSTGRES_PASSWORD: search_password
+      POSTGRES_DB: search_db
     ports:
       - "5432:5432"
-    volumes:
-      - pg_data:/var/lib/postgresql/data
-      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U search_user -d search_db"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
     restart: always
 
-  # Cache Service
-  # Redis is used to cache search results to reduce DB load for frequent queries.
   redis:
     image: redis:alpine
-    container_name: search_redis
+    volumes:
+      - redis_data:/data
     ports:
       - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
     restart: always
 
-  # API Service
-  # The FastAPI application handling search requests.
   app:
     build: .
-    container_name: search_api
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+    volumes:
+      - .:/app
     ports:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql://search_user:search_password@db:5432/search_db
       REDIS_URL: redis://redis:6379/0
-      # Path inside container
-      SYNONYM_FILE_PATH: /app/data/synonyms.json
-      # Server settings
-      UVICORN_HOST: 0.0.0.0
-      UVICORN_PORT: 8000
+      # Override settings for Docker environment
+      SERVER_HOST: "0.0.0.0"
+      SERVER_DEBUG: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: always
+
+  worker:
+    build: .
     volumes:
-      - ./src:/app/src
-      - ./data:/app/data
+      - .:/app
+    environment:
+      DATABASE_URL: postgresql://search_user:search_password@db:5432/search_db
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: python src/workers/crawler_worker.py
     restart: always
 
 volumes:
-  pg_data:
+  db_data:
+  redis_data:
