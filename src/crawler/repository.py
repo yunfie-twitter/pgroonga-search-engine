@@ -2,12 +2,14 @@
 # Responsibility: Encapsulates database operations and state transitions for the crawler.
 # This module is the "lower layer" that can be imported by both the Job (worker) and Scheduler (manager).
 
-from urllib.parse import urlparse
 from typing import List, Tuple
-from src.services.db import DBTransaction
+from urllib.parse import urlparse
+
 from src.config.settings import settings
-from src.crawler.robots import RobotsTxtHandler
 from src.crawler.anomaly_detector import AnomalyDetector
+from src.crawler.robots import RobotsTxtHandler
+from src.services.db import DBTransaction
+
 
 class CrawlRepository:
     """
@@ -70,18 +72,22 @@ class CrawlRepository:
             with DBTransaction() as conn:
                 with conn.cursor() as cur:
                     # Fetch current state
-                    cur.execute("SELECT error_count, depth, score FROM crawl_urls WHERE url = %s", (url,))
+                    cur.execute(
+                        "SELECT error_count, depth, score FROM crawl_urls WHERE url = %s",
+                        (url,)
+                    )
                     row = cur.fetchone()
-                    if not row: return
-                    
+                    if not row:
+                        return
+
                     current_errors, depth, current_score = row
-                    
+
                     if success:
                         status = 'done'
                         interval = settings.CRAWLER.DEFAULT_INTERVAL_SECONDS
                         new_errors = 0
                         new_score = settings.CRAWLER.BASE_SCORE - (depth * settings.CRAWLER.DEPTH_PENALTY)
-                        
+
                         # Update stats
                         domain = urlparse(url).netloc
                         self.detector.increment_domain_count(domain)
@@ -108,22 +114,28 @@ class CrawlRepository:
                         WHERE url = %s
                     """
                     cur.execute(sql, (status, interval, new_errors, new_score, url))
-                    
+
         except Exception as e:
             print(f"[Repository] Status update failed for {url}: {e}")
 
     def _delete_url(self, cur, url: str):
         """Logically deletes a URL and removes its index."""
         print(f"[Repository] Deleting {url} due to max errors.")
-        cur.execute("UPDATE crawl_urls SET status = 'deleted', deleted_at = NOW() WHERE url = %s", (url,))
-        cur.execute("DELETE FROM web_pages WHERE url = %s", (url,))
+        cur.execute(
+            "UPDATE crawl_urls SET status = 'deleted', deleted_at = NOW() WHERE url = %s",
+            (url,)
+        )
+        cur.execute(
+            "DELETE FROM web_pages WHERE url = %s",
+            (url,)
+        )
 
     def fetch_pending_jobs(self, limit: int) -> List[Tuple]:
         """Fetches pending jobs for the dispatcher."""
         sql = """
-            SELECT url, domain, depth 
-            FROM crawl_urls 
-            WHERE status IN ('pending', 'done', 'error') 
+            SELECT url, domain, depth
+            FROM crawl_urls
+            WHERE status IN ('pending', 'done', 'error')
               AND next_crawl_at <= NOW()
             ORDER BY score DESC, next_crawl_at ASC
             LIMIT %s
