@@ -1,96 +1,75 @@
-from datetime import datetime, timedelta, timezone
+# src/crawler/frequency.py
+# Responsibility: Manages crawl scheduling metadata to enforce frequency limits per URL.
+
+from datetime import datetime, timezone
 from typing import Optional
-from src.services.db import get_db_connection
+from src.services.db import DBTransaction
 
 class CrawlFrequencyManager:
     """
-    Manages crawl schedules and status to prevent over-crawling.
+    Enforces policies on how often a specific URL can be crawled.
+    Interacts with the 'crawl_metadata' table.
     """
     
     @staticmethod
-    def check_can_crawl(url: str) -> bool:
+    def is_crawl_allowed(url: str) -> bool:
         """
-        Checks if the URL is eligible for crawling based on metadata.
-        
-        Rules:
-        - If record doesn't exist -> eligible (and created).
-        - If exists, next_crawl_at <= NOW -> eligible.
-        - If exists, next_crawl_at > NOW -> skip.
-        
-        Args:
-            url (str): Target URL.
-            
-        Returns:
-            bool: True if allowed to crawl.
+        Determines if the URL is eligible for crawling at this moment.
+        If it's a new URL, it records it and allows crawling.
         """
-        conn = get_db_connection()
         try:
-            with conn.cursor() as cur:
-                # Upsert initial record if not exists to track it
-                # Set default next_crawl_at to NOW so it's picked up
-                sql_upsert = """
-                    INSERT INTO crawl_metadata (url, next_crawl_at, status)
-                    VALUES (%s, NOW(), 'pending')
-                    ON CONFLICT (url) DO NOTHING
-                """
-                cur.execute(sql_upsert, (url,))
-                conn.commit()
+            with DBTransaction() as conn:
+                with conn.cursor() as cur:
+                    # 1. Ensure record exists (Atomic UPSERT for initial tracking)
+                    sql_init = """
+                        INSERT INTO crawl_metadata (url, next_crawl_at, status)
+                        VALUES (%s, NOW(), 'pending')
+                        ON CONFLICT (url) DO NOTHING
+                    """
+                    cur.execute(sql_init, (url,))
+                    
+                    # 2. Check Schedule
+                    sql_check = "SELECT next_crawl_at FROM crawl_metadata WHERE url = %s"
+                    cur.execute(sql_check, (url,))
+                    row = cur.fetchone()
+                    
+                    if not row:
+                        return True # Should not happen due to insert above
+                    
+                    next_crawl_at = row[0]
+                    # Ensure UTC comparison if DB returns aware datetime
+                    if next_crawl_at <= datetime.now(timezone.utc):
+                        return True
+                    else:
+                        print(f"[Frequency] Skipping {url}. Next allowed: {next_crawl_at}")
+                        return False
 
-                # Check schedule
-                sql_check = """
-                    SELECT next_crawl_at 
-                    FROM crawl_metadata 
-                    WHERE url = %s
-                """
-                cur.execute(sql_check, (url,))
-                row = cur.fetchone()
-                
-                if not row:
-                    return True # Should exist due to insert above
-                
-                next_at = row[0]
-                # Compare timezone-aware datetimes
-                if next_at <= datetime.now(timezone.utc):
-                    return True
-                else:
-                    print(f"Skipping {url}: Next crawl at {next_at}")
-                    return False
         except Exception as e:
-            print(f"Frequency Check Error: {e}")
-            conn.rollback()
+            print(f"[Frequency] Check failed: {e}")
+            # Fail safe: Deny crawl to prevent spamming on DB errors
             return False
-        finally:
-            conn.close()
 
     @staticmethod
-    def mark_crawled(url: str, success: bool, error_msg: Optional[str] = None):
+    def update_crawl_status(url: str, success: bool, error_message: Optional[str] = None):
         """
-        Updates metadata after a crawl attempt.
-        Calculates next_crawl_at based on interval.
+        Updates the metadata after a crawl attempt, setting the next allowed crawl time.
         """
-        conn = get_db_connection()
+        status = 'completed' if success else 'failed'
+        
         try:
-            with conn.cursor() as cur:
-                status = 'completed' if success else 'failed'
-                
-                # Update logic
-                # If success, next time = now + interval
-                # If fail, maybe retry sooner? For now, stick to interval to avoid spamming errors.
-                
-                sql = """
-                    UPDATE crawl_metadata
-                    SET 
-                        last_crawled_at = NOW(),
-                        next_crawl_at = NOW() + (crawl_interval_minutes * INTERVAL '1 minute'),
-                        status = %s,
-                        error_message = %s,
-                        updated_at = NOW()
-                    WHERE url = %s
-                """
-                cur.execute(sql, (status, error_msg, url))
-                conn.commit()
+            with DBTransaction() as conn:
+                with conn.cursor() as cur:
+                    sql = """
+                        UPDATE crawl_metadata
+                        SET 
+                            last_crawled_at = NOW(),
+                            -- Schedule next crawl: NOW + interval
+                            next_crawl_at = NOW() + (crawl_interval_minutes * INTERVAL '1 minute'),
+                            status = %s,
+                            error_message = %s,
+                            updated_at = NOW()
+                        WHERE url = %s
+                    """
+                    cur.execute(sql, (status, error_message, url))
         except Exception as e:
-            print(f"Metadata Update Error: {e}")
-            conn.rollback()
-        finally:
-            conn.close()
+            print(f"[Frequency] Status update failed: {e}")
