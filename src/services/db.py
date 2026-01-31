@@ -1,27 +1,61 @@
+# src/services/db.py
+# Responsibility: Provides centralized database connection management and transaction handling.
+
 import psycopg2
 from typing import Generator
+from contextlib import contextmanager
 from src.config.settings import settings
 
-def get_db_connection():
+def get_raw_connection():
     """
     Creates and returns a raw psycopg2 connection.
-    Used by services that need direct DB access.
+    Used by internal services that require direct DB access.
+    
+    Returns:
+        psycopg2.extensions.connection: A new database connection.
     """
-    conn = psycopg2.connect(settings.DATABASE_URL)
-    conn.autocommit = False  # Explicit transaction management
+    conn = psycopg2.connect(settings.DB.URL)
+    conn.autocommit = False  # Explicit transaction management is safer for production
     return conn
 
-class DBConnection:
+class DBTransaction:
     """
-    Context manager for database connections to ensure proper closing.
+    Context manager for database transactions.
+    Ensures that commits happen on success and rollbacks happen on exception.
+    Also ensures connections are closed properly to prevent leaks.
+    
+    Usage:
+        with DBTransaction() as conn:
+            with conn.cursor() as cur:
+                cur.execute(...)
     """
+    def __init__(self):
+        self.conn = None
+
     def __enter__(self):
-        self.conn = get_db_connection()
-        return self.conn
+        try:
+            self.conn = get_raw_connection()
+            return self.conn
+        except Exception as e:
+            # If connection fails, ensure we don't return a broken state
+            print(f"[DB] Connection failed: {e}")
+            raise
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type:
-            self.conn.rollback()
-        else:
-            self.conn.commit()
-        self.conn.close()
+        if self.conn:
+            try:
+                if exc_type:
+                    # An exception occurred within the block -> Rollback
+                    self.conn.rollback()
+                    print(f"[DB] Transaction rolled back due to error: {exc_val}")
+                else:
+                    # No exception -> Commit
+                    self.conn.commit()
+            except Exception as e:
+                print(f"[DB] Transaction finalization failed: {e}")
+                # We do not suppress the original exception if there was one
+            finally:
+                self.conn.close()
+
+# Alias for simpler import usage if desired, though class usage is preferred for explicitness
+get_db_connection = get_raw_connection
