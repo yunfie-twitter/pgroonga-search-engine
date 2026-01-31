@@ -1,24 +1,29 @@
 # src/crawler/crawler.py
-# Responsibility: Fetches raw HTML content from a given URL using HTTP.
+# Responsibility: Fetches raw content from a given URL using HTTP and delegates parsing.
 
 import httpx
 from typing import Optional, Dict
-from src.crawler.parser import PageParser
+from src.crawler.parser import PageParser, BaseParser
 from src.config.settings import settings
 
 class WebCrawler:
     """
-    Stateful crawler class (can hold session/config).
-    Fetches content and delegates parsing.
+    Component responsible for network IO and content retrieval.
+    Designed to be parser-agnostic through dependency injection (defaults to PageParser).
     """
 
-    def __init__(self):
+    def __init__(self, parser: BaseParser = PageParser):
+        """
+        Args:
+            parser (BaseParser): Strategy for parsing content. Defaults to DefaultHTMLParser.
+        """
         self.timeout = settings.CRAWLER.REQUEST_TIMEOUT
         self.headers = {"User-Agent": settings.CRAWLER.USER_AGENT}
+        self.parser = parser
 
     def fetch_and_parse(self, url: str) -> Optional[Dict]:
         """
-        Fetches the page and parses it if successful.
+        Fetches the page and parses it using the configured parser.
         
         Args:
             url (str): Target URL.
@@ -31,14 +36,14 @@ class WebCrawler:
                 response = client.get(url, headers=self.headers, follow_redirects=True)
                 response.raise_for_status()
                 
-                # Basic Content-Type validation
+                # Check for HTML content before parsing
                 content_type = response.headers.get("content-type", "").lower()
                 if "text/html" not in content_type:
                     print(f"[Crawler] Skipped {url}: Non-HTML content ({content_type})")
                     return None
 
-                # Delegate to Parser
-                return PageParser.parse(url, response.text)
+                # Delegate parsing to the injected strategy
+                return self.parser.parse(url, response.text)
 
         except httpx.RequestError as e:
             print(f"[Crawler] Network error on {url}: {e}")
