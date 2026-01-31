@@ -1,0 +1,9 @@
+{
+  "検索": ["サーチ", "探す", "検索エンジン"],
+  "クラウド": ["cloud", "クラウド環境", "aws", "gcp", "azure"],
+  "ai": ["人工知能", "機械学習", "ml", "deep learning"],
+  "python": ["パイソン", "py", "python3"],
+  "fastapi": ["fast api", "fast-api"],
+  "web": ["ウェブ", "www", "インターネット"],
+  "db": ["データベース", "database", "rdbms", "sql"]
+}
