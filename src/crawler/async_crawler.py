@@ -14,41 +14,32 @@ class AsyncCrawlerClient:
     """
 
     def __init__(self):
-        """
-        Initializes connection to Redis Queue using settings.
-        """
         self.redis_conn = redis.from_url(settings.REDIS.URL)
         self.queue = Queue(settings.REDIS.QUEUE_NAME, connection=self.redis_conn)
 
     def enqueue_jobs(self, urls: List[str]) -> List[str]:
         """
-        Submits a batch of URLs to the crawl queue.
-        
-        Args:
-            urls (List[str]): URLs to crawl.
-            
-        Returns:
-            List[str]: List of enqueued Job IDs.
+        Legacy batch enqueue (Depth 0 assumed).
+        Used by Admin API manually.
         """
         job_ids = []
         for url in urls:
-            # We explicitly pass the function object `perform_crawl_job`
-            job = self.queue.enqueue(
-                perform_crawl_job, 
-                url, 
-                job_timeout=settings.CRAWLER.JOB_TIMEOUT
-            )
-            job_ids.append(job.get_id())
-            
+            job_ids.append(self.enqueue_job(url, depth=0))
         return job_ids
 
+    def enqueue_job(self, url: str, depth: int) -> str:
+        """
+        Enqueues a single job with depth context.
+        """
+        job = self.queue.enqueue(
+            perform_crawl_job, 
+            url, 
+            depth, # Argument 2 for job function
+            job_timeout=settings.CRAWLER.JOB_TIMEOUT
+        )
+        return job.get_id()
+
     def get_queue_info(self) -> Dict[str, Any]:
-        """
-        Returns snapshot metrics of the crawler queue.
-        
-        Returns:
-            Dict[str, Any]: Queue statistics (count, empty status, etc.)
-        """
         return {
             "queue_name": self.queue.name,
             "job_count": self.queue.count,
