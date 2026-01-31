@@ -19,11 +19,25 @@ class CrawlerSettings(BaseSettings):
     REQUEST_TIMEOUT: int = 10
     JOB_TIMEOUT: int = 60
     
-    # New Settings for Depth and Frequency
+    # Depth and Frequency
     MAX_DEPTH: int = 3
-    DEFAULT_INTERVAL_SECONDS: int = 86400  # 24 hours
-    ERROR_INTERVAL_SECONDS: int = 21600    # 6 hours
-    DOMAIN_LOCK_TTL_SECONDS: int = 60      # Lock duration to prevent rapid-fire on same domain
+    DEFAULT_INTERVAL_SECONDS: int = 86400  # 24h
+    ERROR_INTERVAL_SECONDS: int = 21600    # 6h
+    DOMAIN_LOCK_TTL_SECONDS: int = 60
+    
+    # Priority Scoring
+    BASE_SCORE: float = 100.0
+    DEPTH_PENALTY: float = 10.0
+    ERROR_PENALTY: float = 20.0
+    
+    # Reliability & Cleanup
+    MAX_RETRIES: int = 5  # Max failures before marking as 'deleted'
+    ROBOTS_CACHE_TTL: int = 86400 # 24h cache for robots.txt
+    
+    # Anomaly Detection
+    MAX_URLS_PER_DOMAIN: int = 1000 # Stop crawling domain after this many URLs
+    MAX_URL_LENGTH: int = 256
+    MAX_PATH_SEGMENT_REPEATS: int = 3 # e.g. /a/a/a/a -> blocked
 
 class AppSettings(BaseSettings):
     DB: DatabaseSettings = DatabaseSettings()
