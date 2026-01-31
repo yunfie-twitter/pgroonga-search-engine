@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, Query
+# src/routers/search.py
+# Responsibility: Handles search API endpoints. Validates input and formats output.
+
+from fastapi import APIRouter, Depends, Query, HTTPException
 from typing import Optional, List
 from datetime import date
 from pydantic import BaseModel
@@ -10,42 +13,34 @@ router = APIRouter(
     tags=["Search"]
 )
 
+# --- Pydantic Models ---
 class SearchResultItem(BaseModel):
-    """
-    Schema for individual search result items.
-    """
     url: str
     title: str
     snippet: str
     score: float
 
 class SearchResponse(BaseModel):
-    """
-    Schema for the search API response.
-    """
     query: str
     count: int
     results: List[SearchResultItem]
 
+# --- Endpoints ---
 @router.get("", response_model=SearchResponse)
-def search(
-    q: str = Query(..., min_length=1, description="Search query"),
+def search_endpoint(
+    q: str = Query(..., min_length=1, description="Search query string"),
     category: Optional[str] = Query(None, description="Category filter"),
-    date_from: Optional[date] = Query(None, description="Filter by published date from (YYYY-MM-DD)"),
-    date_to: Optional[date] = Query(None, description="Filter by published date to (YYYY-MM-DD)"),
-    limit: int = Query(20, ge=1, le=100, description="Max results to return"),
+    date_from: Optional[date] = Query(None, description="Start date (YYYY-MM-DD)"),
+    date_to: Optional[date] = Query(None, description="End date (YYYY-MM-DD)"),
+    limit: int = Query(20, ge=1, le=100, description="Max results (1-100)"),
     service: SearchService = Depends(get_search_service)
 ):
     """
-    Executes a search query against the web pages index.
-    
-    Flow:
-    1. Receives request
-    2. Calls SearchService (which handles normalization, expansion, cache, DB)
-    3. Returns formatted response
+    Search API endpoint.
+    Receives query parameters, calls the service, and returns structured results.
     """
-    
-    # Construct filters dictionary
+    # 1. Parameter Preparation
+    # Convert API parameters into a dictionary format expected by the service.
     filters = {}
     if category:
         filters["category"] = category
@@ -54,9 +49,16 @@ def search(
     if date_to:
         filters["to"] = date_to.isoformat()
 
-    # Delegate logic to the service layer
-    results = service.search(q, filters, limit)
+    # 2. Service Execution
+    try:
+        results = service.execute_search(q, filters, limit)
+    except Exception as e:
+        # Catch unexpected errors to prevent 500 crashes propagating raw errors
+        # In a real app, we'd log this properly.
+        print(f"Search failed: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error during search")
 
+    # 3. Response Construction
     return SearchResponse(
         query=q,
         count=len(results),
