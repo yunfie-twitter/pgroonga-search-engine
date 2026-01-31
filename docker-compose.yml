@@ -1,6 +1,8 @@
 version: '3.8'
 
 services:
+  # Database Service
+  # Uses PGroonga image which includes PostgreSQL + Groonga extension for fast full-text search.
   db:
     image: groonga/pgroonga:latest-alpine-15
     container_name: search_db
@@ -12,13 +14,16 @@ services:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U search_user -d search_db"]
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: always
 
+  # Cache Service
+  # Redis is used to cache search results to reduce DB load for frequent queries.
   redis:
     image: redis:alpine
     container_name: search_redis
@@ -29,21 +34,32 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: always
 
+  # API Service
+  # The FastAPI application handling search requests.
   app:
     build: .
-    container_name: search_app
+    container_name: search_api
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+    ports:
+      - "8000:8000"
     environment:
       DATABASE_URL: postgresql://search_user:search_password@db:5432/search_db
       REDIS_URL: redis://redis:6379/0
-      SYNONYM_FILE_PATH: /app/synonyms.json
+      # Path inside container
+      SYNONYM_FILE_PATH: /app/data/synonyms.json
+      # Server settings
+      UVICORN_HOST: 0.0.0.0
+      UVICORN_PORT: 8000
     volumes:
-      - .:/app
+      - ./src:/app/src
+      - ./data:/app/data
+    restart: always
 
 volumes:
   pg_data:
