@@ -60,8 +60,12 @@ def search_endpoint(
         raise HTTPException(status_code=500, detail="Internal server error during search")
 
     # 3. Response Construction
+    # Explicitly convert dicts to Pydantic models to satisfy type checkers
+    # and ensure strict schema compliance.
+    typed_results = [SearchResultItem(**item) for item in results]
+
     return SearchResponse(
         query=q,
-        count=len(results),
-        results=results
+        count=len(typed_results),
+        results=typed_results
     )
