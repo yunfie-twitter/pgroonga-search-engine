@@ -3,14 +3,16 @@
 
 from datetime import datetime, timezone
 from typing import Optional
+
 from src.services.db import DBTransaction
+
 
 class CrawlFrequencyManager:
     """
     Enforces policies on how often a specific URL can be crawled.
     Interacts with the 'crawl_metadata' table.
     """
-    
+
     @staticmethod
     def is_crawl_allowed(url: str) -> bool:
         """
@@ -27,15 +29,15 @@ class CrawlFrequencyManager:
                         ON CONFLICT (url) DO NOTHING
                     """
                     cur.execute(sql_init, (url,))
-                    
+
                     # 2. Check Schedule
                     sql_check = "SELECT next_crawl_at FROM crawl_metadata WHERE url = %s"
                     cur.execute(sql_check, (url,))
                     row = cur.fetchone()
-                    
+
                     if not row:
                         return True # Should not happen due to insert above
-                    
+
                     next_crawl_at = row[0]
                     # Ensure UTC comparison if DB returns aware datetime
                     if next_crawl_at <= datetime.now(timezone.utc):
@@ -55,13 +57,13 @@ class CrawlFrequencyManager:
         Updates the metadata after a crawl attempt, setting the next allowed crawl time.
         """
         status = 'completed' if success else 'failed'
-        
+
         try:
             with DBTransaction() as conn:
                 with conn.cursor() as cur:
                     sql = """
                         UPDATE crawl_metadata
-                        SET 
+                        SET
                             last_crawled_at = NOW(),
                             -- Schedule next crawl: NOW + interval
                             next_crawl_at = NOW() + (crawl_interval_minutes * INTERVAL '1 minute'),

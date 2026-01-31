@@ -1,5 +1,5 @@
 import re
-from typing import List
+
 
 class SnippetGenerator:
     """
@@ -8,7 +8,7 @@ class SnippetGenerator:
     """
 
     MAX_LENGTH = 120
-    
+
     @staticmethod
     def generate(content: str, query: str) -> str:
         """
@@ -48,11 +48,11 @@ class SnippetGenerator:
             for term in terms:
                 if term in s_lower:
                     score += 1
-            
+
             if score > max_score:
                 max_score = score
                 best_sentence = sentence
-            
+
             # Optimization: If we find a sentence with all terms, break early?
             # Maybe not, just finding the first best one is okay.
 

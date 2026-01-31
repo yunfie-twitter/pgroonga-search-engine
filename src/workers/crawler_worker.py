@@ -1,18 +1,20 @@
 # src/workers/crawler_worker.py
 # Responsibility: Runs the RQ Worker AND the autonomous dispatch loop.
 
-import redis
-from rq import Worker, Queue, Connection
 import os
 import sys
-import time
 import threading
+import time
+
+import redis
+from rq import Connection, Worker
 
 # Ensure project root is in path
 sys.path.append(os.getcwd())
 
 from src.config.settings import settings
 from src.crawler.scheduler import CrawlScheduler
+
 
 def run_scheduler_loop():
     """
@@ -21,12 +23,12 @@ def run_scheduler_loop():
     """
     scheduler = CrawlScheduler()
     print("[Scheduler Thread] Started.")
-    
+
     while True:
         try:
             # Dispatch jobs
             scheduler.dispatch_pending_jobs(limit=20)
-            
+
             # Wait before next check to avoid hammering DB
             # 10 seconds is a reasonable balance for responsiveness vs load
             time.sleep(10)

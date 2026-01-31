@@ -1,11 +1,13 @@
 # src/routers/crawl_status.py
 # Responsibility: Read-only API to visualize the crawler's internal state.
 
+from typing import Any, Dict, List
+
 from fastapi import APIRouter
-from typing import Dict, List, Any
 from psycopg2.extras import RealDictCursor
-from src.services.db import DBTransaction
+
 from src.crawler.async_crawler import AsyncCrawlerClient
+from src.services.db import DBTransaction
 
 router = APIRouter(
     prefix="/crawl",

@@ -2,6 +2,7 @@ import json
 import os
 from typing import Dict, List
 
+
 class SynonymExpander:
     """
     Handles expansion of search queries using a synonym dictionary.
@@ -23,7 +24,7 @@ class SynonymExpander:
             # In production, you might want to log this as a warning
             print(f"WARNING: Synonym file not found: {path}")
             return {}
-        
+
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 return json.load(f)
@@ -34,7 +35,7 @@ class SynonymExpander:
     def expand(self, normalized_query: str) -> str:
         """
         Expands keywords in the query.
-        
+
         Logic:
         1. Split query into terms.
         2. Look up each term in the dictionary.
@@ -57,10 +58,10 @@ class SynonymExpander:
             # Get synonyms list (or empty list if none)
             # Assuming dictionary keys are also normalized (lowercase)
             syn_list = self.synonyms.get(term, [])
-            
+
             # Combine original term + synonyms, remove duplicates, sort for determinism
             variants = sorted(list(set([term] + syn_list)))
-            
+
             if len(variants) > 1:
                 # Format as (A OR B) for PGroonga
                 group = f"({' OR '.join(variants)})"

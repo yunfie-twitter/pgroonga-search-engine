@@ -1,9 +1,11 @@
 # src/indexer/indexer.py
 # Responsibility: Handles persistent storage (UPSERT) of web pages, unique images, and representative selection.
 
-from typing import List, Dict, Optional
-from src.services.db import DBTransaction
+from typing import Dict, List
+
 from src.indexer.image_selector import ImageSelector
+from src.services.db import DBTransaction
+
 
 class Indexer:
     """
@@ -17,7 +19,7 @@ class Indexer:
     def upsert_batch(self, pages: List[Dict]) -> int:
         if not pages: return 0
         success_count = 0
-        
+
         # 1. Image Asset Upsert (Global unique check)
         sql_image_asset = """
             INSERT INTO images (image_hash, canonical_url)
@@ -33,7 +35,7 @@ class Indexer:
                 representative_image_id, search_text
             )
             VALUES (%s, %s, %s, %s, %s, NOW(), NOW(), %s, %s)
-            ON CONFLICT (url) 
+            ON CONFLICT (url)
             DO UPDATE SET
                 title = EXCLUDED.title,
                 content = EXCLUDED.content,
@@ -54,7 +56,7 @@ class Indexer:
                 position = EXCLUDED.position,
                 updated_at = NOW()
         """
-        
+
         # 4. Cleanup old links
         sql_delete_links = "DELETE FROM page_images WHERE page_url = %s"
 
@@ -102,11 +104,11 @@ class Indexer:
                                 img.get('alt'),
                                 img.get('position')
                             ))
-                        
+
                         success_count += 1
 
         except Exception as e:
             print(f"[Indexer] Batch transaction failed: {e}")
             return 0
-            
+
         return success_count

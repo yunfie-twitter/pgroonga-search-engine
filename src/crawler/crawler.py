@@ -1,10 +1,13 @@
 # src/crawler/crawler.py
 # Responsibility: Fetches raw content from a given URL using HTTP and delegates parsing.
 
+from typing import Dict, Optional
+
 import httpx
-from typing import Optional, Dict
-from src.crawler.parser import PageParser, BaseParser
+
 from src.config.settings import settings
+from src.crawler.parser import BaseParser, PageParser
+
 
 class WebCrawler:
     """
@@ -24,10 +27,10 @@ class WebCrawler:
     def fetch_and_parse(self, url: str) -> Optional[Dict]:
         """
         Fetches the page and parses it using the configured parser.
-        
+
         Args:
             url (str): Target URL.
-            
+
         Returns:
             Optional[Dict]: Parsed page data, or None on failure.
         """
@@ -35,7 +38,7 @@ class WebCrawler:
             with httpx.Client(timeout=self.timeout) as client:
                 response = client.get(url, headers=self.headers, follow_redirects=True)
                 response.raise_for_status()
-                
+
                 # Check for HTML content before parsing
                 content_type = response.headers.get("content-type", "").lower()
                 if "text/html" not in content_type:
@@ -51,5 +54,5 @@ class WebCrawler:
             print(f"[Crawler] HTTP {e.response.status_code} on {url}")
         except Exception as e:
             print(f"[Crawler] Unexpected error on {url}: {e}")
-            
+
         return None

@@ -77,8 +77,12 @@ class CrawlRepository:
                         (url,)
                     )
                     row = cur.fetchone()
+<<<<<<< Updated upstream
                     if not row:
                         return
+=======
+                    if not row: return
+>>>>>>> Stashed changes
 
                     current_errors, depth, current_score = row
 

@@ -3,20 +3,21 @@
 # Now completely decoupled from the Scheduler to avoid circular imports.
 
 from src.crawler.crawler import WebCrawler
-from src.indexer.indexer import Indexer
 from src.crawler.repository import CrawlRepository
+from src.indexer.indexer import Indexer
+
 
 def perform_crawl_job(url: str, depth: int = 0) -> None:
     """
     Executes the full crawl pipeline for a single URL.
     Updates state via Repository.
-    
+
     Args:
         url (str): The target URL to crawl.
         depth (int): Current depth of the URL in the crawl tree.
     """
     print(f"[Worker] Starting job for: {url} (Depth: {depth})")
-    
+
     # Use Repository for all DB state updates
     repository = CrawlRepository()
 

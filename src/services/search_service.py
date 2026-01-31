@@ -1,16 +1,18 @@
 # src/services/search_service.py
 # Responsibility: Orchestrates the core search logic (Normalization -> Expansion -> Cache -> DB -> Snippet).
 
-from psycopg2.extras import RealDictCursor
-from typing import List, Dict, Any
 from functools import lru_cache
+from typing import Any, Dict, List
+
+from psycopg2.extras import RealDictCursor
 
 from src.config.settings import settings
-from src.services.query_normalizer import QueryNormalizer
-from src.services.synonym_expander import SynonymExpander
-from src.services.redis_cache import RedisCacheManager
 from src.services.db import DBTransaction
+from src.services.query_normalizer import QueryNormalizer
+from src.services.redis_cache import RedisCacheManager
+from src.services.synonym_expander import SynonymExpander
 from src.snippet.snippet_generator import SnippetGenerator
+
 
 class SearchService:
     """
@@ -25,7 +27,7 @@ class SearchService:
     def execute_search(self, raw_query: str, filters: Dict[str, Any], limit: int) -> List[Dict]:
         """
         Executes a search query with full pipeline processing.
-        
+
         Pipeline:
         1. Normalize user query.
         2. Expand query with synonyms.
@@ -33,12 +35,12 @@ class SearchService:
         4. If miss, query PostgreSQL (PGroonga).
         5. Generate snippets from content.
         6. Cache results.
-        
+
         Args:
             raw_query (str): The raw input query from the user.
             filters (Dict): Filter parameters (category, date range).
             limit (int): Maximum number of results.
-            
+
         Returns:
             List[Dict]: Processed search results with snippets.
         """
@@ -64,7 +66,7 @@ class SearchService:
         for row in db_rows:
             # Generate a relevant snippet based on the normalized query (what the user actually typed)
             snippet = SnippetGenerator.generate(row['content'], normalized_query)
-            
+
             # Construct the final result object
             result_item = {
                 "url": row['url'],
@@ -85,9 +87,9 @@ class SearchService:
         Executes the raw SQL query against PostgreSQL using PGroonga.
         """
         sql = """
-            SELECT 
-                url, 
-                title, 
+            SELECT
+                url,
+                title,
                 content,
                 pgroonga_score(tableoid, ctid) AS score
             FROM web_pages
@@ -99,11 +101,11 @@ class SearchService:
         if "category" in filters:
             sql += " AND category = %s"
             params.append(filters["category"])
-        
+
         if "from" in filters:
             sql += " AND published_at >= %s"
             params.append(filters["from"])
-        
+
         if "to" in filters:
             sql += " AND published_at <= %s"
             params.append(filters["to"])

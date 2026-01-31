@@ -1,11 +1,14 @@
 # src/crawler/async_crawler.py
 # Responsibility: Client interface for enqueueing crawl jobs to Redis Queue (RQ).
 
+from typing import Any, Dict, List
+
 import redis
 from rq import Queue
-from typing import List, Dict, Any
+
 from src.config.settings import settings
 from src.crawler.job import perform_crawl_job
+
 
 class AsyncCrawlerClient:
     """
@@ -30,9 +33,9 @@ class AsyncCrawlerClient:
         Cycle broken.
         """
         job = self.queue.enqueue(
-            perform_crawl_job, 
-            url, 
-            depth, 
+            perform_crawl_job,
+            url,
+            depth,
             job_timeout=settings.CRAWLER.JOB_TIMEOUT
         )
         return job.get_id()

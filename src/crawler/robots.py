@@ -3,9 +3,12 @@
 
 import urllib.robotparser
 from urllib.parse import urlparse
-import redis
+
 import httpx
+import redis
+
 from src.config.settings import settings
+
 
 class RobotsTxtHandler:
     """
@@ -24,16 +27,16 @@ class RobotsTxtHandler:
         """
         domain = urlparse(url).netloc
         robots_url = f"{urlparse(url).scheme}://{domain}/robots.txt"
-        
+
         # 1. Check Cache
-        # We store the serialized robots.txt content or specific rules. 
-        # For simplicity, we'll store the raw content and re-parse. 
+        # We store the serialized robots.txt content or specific rules.
+        # For simplicity, we'll store the raw content and re-parse.
         # (Parsing is fast, fetching is slow)
         cache_key = f"robots:{domain}"
         cached_content = self.redis.get(cache_key)
 
         rp = urllib.robotparser.RobotFileParser()
-        
+
         if cached_content:
             # Load from cache
             try:
@@ -53,7 +56,7 @@ class RobotsTxtHandler:
                         # Save to cache
                         self.redis.setex(cache_key, self.ttl, content)
                     else:
-                        # If 404 or error, assume allowed but cache the "absence" 
+                        # If 404 or error, assume allowed but cache the "absence"
                         # to prevent retries (e.g. empty string)
                         self.redis.setex(cache_key, self.ttl, "")
                         return True

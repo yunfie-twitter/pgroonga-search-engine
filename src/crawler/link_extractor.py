@@ -1,10 +1,13 @@
 # src/crawler/link_extractor.py
 # Responsibility: Extract, filter, and normalize links from parsed HTML.
 
-from urllib.parse import urlparse, urljoin, urlunparse
 from typing import List, Set
+from urllib.parse import urljoin, urlparse, urlunparse
+
 from bs4 import BeautifulSoup
+
 from src.config.settings import settings
+
 
 class LinkExtractor:
     """
@@ -23,26 +26,26 @@ class LinkExtractor:
         """
         soup = BeautifulSoup(html_content, 'html.parser')
         links: Set[str] = set()
-        
+
         for a_tag in soup.find_all('a', href=True):
             raw_href = a_tag['href']
-            
+
             # 1. Skip obvious non-links
             if self._is_ignored_scheme(raw_href):
                 continue
-                
+
             # 2. Normalize to Absolute URL
             abs_url = urljoin(self.base_url, raw_href)
-            
+
             # 3. Validation Rules
             if not self._is_valid_target(abs_url):
                 continue
-                
+
             # 4. Final Normalization (Fragment removal, etc)
             normalized_url = self._normalize(abs_url)
-            
+
             links.add(normalized_url)
-            
+
         return list(links)
 
     def _is_ignored_scheme(self, href: str) -> bool:
@@ -51,20 +54,20 @@ class LinkExtractor:
 
     def _is_valid_target(self, url: str) -> bool:
         parsed = urlparse(url)
-        
+
         # Rule: Same Domain Only
         if parsed.netloc != self.domain:
             return False
-            
+
         # Rule: Skip specific paths (Login/Logout)
         path = parsed.path.lower()
         if any(keyword in path for keyword in ['/login', '/logout', '/signout', '/admin']):
             return False
-            
+
         # Rule: Skip non-http schemes
         if parsed.scheme not in ('http', 'https'):
             return False
-            
+
         return True
 
     def _normalize(self, url: str) -> str:
@@ -72,11 +75,11 @@ class LinkExtractor:
         Removes fragment and sorts query params for consistency.
         """
         parsed = urlparse(url)
-        
+
         # Sort query params? Simplification: Remove fragment only for now
         # Ideally, we should sort query params to avoid duplication like ?a=1&b=2 vs ?b=2&a=1
         # But standardizing on urlunparse is a good start.
-        
+
         return urlunparse((
             parsed.scheme,
             parsed.netloc,

@@ -1,4 +1,3 @@
-import pytest
 from src.crawler.parser import DefaultHTMLParser
 
 # Minimal HTML sample for testing
@@ -26,22 +25,22 @@ SAMPLE_HTML = """
 def test_parser_extraction():
     parser = DefaultHTMLParser()
     url = "https://example.com/page"
-    
+
     result = parser.parse(url, SAMPLE_HTML)
-    
+
     # 1. Assert Basic Fields
     assert result["url"] == url
     assert result["title"] == "Test Page"
-    
+
     # 2. Assert Content (Noise Removal Check)
     # Header, Nav, Footer should be gone
     assert "Ignored Header" not in result["content"]
     assert "Main Title" in result["content"]
     assert "This is the main content." in result["content"]
-    
+
     # 3. Assert Metadata
     assert result["published_at"] == "2023-01-01"
-    
+
     # 4. Assert Images
     # Should find 1 image, normalized to absolute URL
     assert len(result["images"]) == 1

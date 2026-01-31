@@ -1,12 +1,13 @@
 # src/routers/admin.py
 # Responsibility: Handles administration endpoints. Triggers crawls via Scheduler.
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, HttpUrl
 from typing import List
 
-from src.crawler.scheduler import CrawlScheduler
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, HttpUrl
+
 from src.crawler.async_crawler import AsyncCrawlerClient
+from src.crawler.scheduler import CrawlScheduler
 
 router = APIRouter(
     prefix="/admin",
@@ -26,7 +27,7 @@ def trigger_crawl_endpoint(req: CrawlRequest):
     Registers seed URLs to the Crawl system.
     """
     url_strings = [str(u) for u in req.urls]
-    
+
     if not url_strings:
         raise HTTPException(status_code=400, detail="No URLs provided")
 
@@ -49,5 +50,5 @@ def get_crawl_status_endpoint():
     try:
         client = AsyncCrawlerClient()
         return client.get_queue_info()
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=503, detail="Could not retrieve queue info")

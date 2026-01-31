@@ -1,9 +1,10 @@
 # src/routers/search.py
 # Responsibility: Handles search API endpoints. Validates input and formats output.
 
-from fastapi import APIRouter, Depends, Query, HTTPException
-from typing import Optional, List
 from datetime import date
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from src.services.search_service import SearchService, get_search_service

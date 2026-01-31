@@ -1,16 +1,17 @@
 # src/services/db.py
 # Responsibility: Provides centralized database connection management and transaction handling.
 
+
 import psycopg2
-from typing import Generator
-from contextlib import contextmanager
+
 from src.config.settings import settings
+
 
 def get_raw_connection():
     """
     Creates and returns a raw psycopg2 connection.
     Used by internal services that require direct DB access.
-    
+
     Returns:
         psycopg2.extensions.connection: A new database connection.
     """
@@ -23,7 +24,7 @@ class DBTransaction:
     Context manager for database transactions.
     Ensures that commits happen on success and rollbacks happen on exception.
     Also ensures connections are closed properly to prevent leaks.
-    
+
     Usage:
         with DBTransaction() as conn:
             with conn.cursor() as cur:

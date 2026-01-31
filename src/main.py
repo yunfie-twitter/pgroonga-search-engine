@@ -3,8 +3,10 @@
 
 import uvicorn
 from fastapi import FastAPI
-from src.routers import search, admin, crawl_status
+
 from src.config.settings import settings
+from src.routers import admin, crawl_status, search
+
 
 def create_app() -> FastAPI:
     """
@@ -34,8 +36,8 @@ app = create_app()
 
 if __name__ == "__main__":
     uvicorn.run(
-        "src.main:app", 
-        host=settings.SERVER.HOST, 
-        port=settings.SERVER.PORT, 
+        "src.main:app",
+        host=settings.SERVER.HOST,
+        port=settings.SERVER.PORT,
         reload=settings.SERVER.DEBUG
     )

@@ -1,0 +1,10 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# virtual env / uv
+.venv/
+uv.lock
+
+# build / metadata
+*.egg-info/

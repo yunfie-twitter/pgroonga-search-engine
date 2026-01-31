@@ -1,5 +1,6 @@
-import unicodedata
 import re
+import unicodedata
+
 
 class QueryNormalizer:
     """

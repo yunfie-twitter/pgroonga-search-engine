@@ -2,8 +2,11 @@
 # Responsibility: Detecting abnormal crawling patterns (spider traps, infinite loops).
 
 from urllib.parse import urlparse
+
 import redis
+
 from src.config.settings import settings
+
 
 class AnomalyDetector:
     """
@@ -28,7 +31,7 @@ class AnomalyDetector:
         segments = [s for s in path.split('/') if s]
         if not segments:
             return False
-            
+
         # Check for immediate repeats
         repeat_count = 0
         last_segment = None
@@ -37,11 +40,11 @@ class AnomalyDetector:
                 repeat_count += 1
             else:
                 repeat_count = 0
-            
+
             if repeat_count >= self.max_repeats:
                 return True
             last_segment = seg
-            
+
         return False
 
     def check_domain_limit(self, domain: str) -> bool:
@@ -53,7 +56,7 @@ class AnomalyDetector:
         count = self.redis.get(key)
         if count and int(count) > settings.CRAWLER.MAX_URLS_PER_DOMAIN:
             return True # Blocked
-        
+
         return False
 
     def increment_domain_count(self, domain: str):

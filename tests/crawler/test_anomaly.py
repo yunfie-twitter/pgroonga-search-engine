@@ -1,6 +1,7 @@
-import pytest
-from src.crawler.anomaly_detector import AnomalyDetector
 from unittest.mock import MagicMock
+
+from src.crawler.anomaly_detector import AnomalyDetector
+
 
 def test_anomaly_detection_logic():
     # Setup Mock Redis for domain counting tests
@@ -18,7 +19,7 @@ def test_anomaly_detection_logic():
     # /cal/cal/cal/cal ...
     trap_url = "https://example.com/calendar/calendar/calendar/calendar"
     assert detector.is_anomalous(trap_url) is True
-    
+
     normal_url = "https://example.com/blog/2023/01/post"
     assert detector.is_anomalous(normal_url) is False
 
