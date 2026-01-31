@@ -10,7 +10,6 @@ from src.crawler.job import perform_crawl_job
 class AsyncCrawlerClient:
     """
     Facade for interacting with the asynchronous crawler queue.
-    Abstracts away the details of Redis/RQ connection.
     """
 
     def __init__(self):
@@ -18,10 +17,7 @@ class AsyncCrawlerClient:
         self.queue = Queue(settings.REDIS.QUEUE_NAME, connection=self.redis_conn)
 
     def enqueue_jobs(self, urls: List[str]) -> List[str]:
-        """
-        Legacy batch enqueue (Depth 0 assumed).
-        Used by Admin API manually.
-        """
+        """Legacy support."""
         job_ids = []
         for url in urls:
             job_ids.append(self.enqueue_job(url, depth=0))
@@ -29,12 +25,14 @@ class AsyncCrawlerClient:
 
     def enqueue_job(self, url: str, depth: int) -> str:
         """
-        Enqueues a single job with depth context.
+        Enqueues a single job.
+        This module imports 'perform_crawl_job' but 'job.py' does NOT import this module.
+        Cycle broken.
         """
         job = self.queue.enqueue(
             perform_crawl_job, 
             url, 
-            depth, # Argument 2 for job function
+            depth, 
             job_timeout=settings.CRAWLER.JOB_TIMEOUT
         )
         return job.get_id()
