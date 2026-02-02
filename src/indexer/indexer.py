@@ -24,9 +24,9 @@ class Indexer:
 
         # 1. Image Asset Upsert (Global unique check)
         sql_image_asset = """
-            INSERT INTO images (image_hash, canonical_url)
+            INSERT INTO images (file_hash, canonical_url)
             VALUES (%s, %s)
-            ON CONFLICT (image_hash) DO NOTHING
+            ON CONFLICT (file_hash) DO NOTHING
         """
 
         # 2. Page Upsert
@@ -51,7 +51,7 @@ class Indexer:
         # 3. Page-Image Link Upsert
         sql_link_image = """
             INSERT INTO page_images (page_url, image_id, alt_text, position)
-            VALUES (%s, (SELECT id FROM images WHERE image_hash = %s), %s, %s)
+            VALUES (%s, (SELECT id FROM images WHERE file_hash = %s), %s, %s)
             ON CONFLICT (page_url, image_id) DO UPDATE SET
                 alt_text = EXCLUDED.alt_text,
                 position = EXCLUDED.position,
@@ -80,7 +80,7 @@ class Indexer:
                         rep_id = None
                         if rep_hash:
                             cur.execute(
-                                "SELECT id FROM images WHERE image_hash = %s",
+                                "SELECT id FROM images WHERE file_hash = %s",
                                 (rep_hash,),
                             )
                             res = cur.fetchone()

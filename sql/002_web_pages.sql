@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS web_pages (
     -- HTMLタグ除去済みの本文を想定
     content TEXT NOT NULL DEFAULT '',
     
+    -- 検索用統合テキスト (Title + Content + AltText)
+    search_text TEXT NOT NULL DEFAULT '',
+    
     -- フィルタリング用
     category TEXT DEFAULT 'general',
     published_at TIMESTAMP WITH TIME ZONE,
@@ -22,6 +25,7 @@ CREATE TABLE IF NOT EXISTS web_pages (
     -- images.id へのFK (循環参照防止のためALTERで後付けも可だが、ここでは単純化)
     representative_image_id BIGINT, 
     
+    crawled_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

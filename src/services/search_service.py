@@ -102,7 +102,7 @@ class SearchService:
                 content,
                 pgroonga_score(tableoid, ctid) AS score
             FROM web_pages
-            WHERE (title || ' ' || content) &@ %s
+            WHERE search_text &@ %s
         """
         params: List[Union[str, int]] = [pgroonga_query]
 

@@ -13,7 +13,7 @@ WHERE status IN ('pending', 'done', 'error');
 -- ここでは両方をターゲットにします。
 CREATE INDEX IF NOT EXISTS pgroonga_search_idx 
 ON web_pages 
-USING pgroonga (title, content);
+USING pgroonga (search_text);
 
 -- 3. フィルタリング用インデックス
 CREATE INDEX IF NOT EXISTS idx_web_pages_category 
