@@ -1,0 +1,64 @@
+[Scheduler Thread] Started.[Worker] Starting worker on queue: 'crawler_queue'
+03:38:23 Worker rq:worker:2214e8e6b19c4bbbad68b670f015a8e9: Redis connection timeout, quitting...
+03:44:42 Worker rq:worker:27c3d581835e48ea935a56ea162422a2: Redis connection timeout, quitting...
+03:51:02 Worker rq:worker:a7d95cc93709497da8a6174903ae32ef: Redis connection timeout, quitting...
+03:57:21 Worker rq:worker:0d69acda92d34dd8a90fb11f5d93b7aa: Redis connection timeout, quitting...
+04:03:40 Worker rq:worker:32ae68a3376a4d7a81964a1c7fdb914e: Redis connection timeout, quitting...
+04:10:08 Worker rq:worker:9a442310b7a5473bb8fd07f631d74016: Redis connection timeout, quitting...
+04:16:19 Worker rq:worker:96310c15e22544c0b3f6cda0e4422559: Redis connection timeout, quitting...
+04:22:38 Worker rq:worker:4ec9d4161b2846c89c488b9bcfaa420c: Redis connection timeout, quitting...
+
+03:32:05 Worker rq:worker:2214e8e6b19c4bbbad68b670f015a8e9 started with PID 1, version 1.15.0
+03:32:05 Subscribing to channel rq:pubsub:2214e8e6b19c4bbbad68b670f015a8e9
+03:32:05 *** Listening on crawler_queue...
+03:38:23 Unsubscribing from channel rq:pubsub:2214e8e6b19c4bbbad68b670f015a8e9
+[Scheduler Thread] Started.[Worker] Starting worker on queue: 'crawler_queue'
+
+03:38:25 Worker rq:worker:27c3d581835e48ea935a56ea162422a2 started with PID 1, version 1.15.0
+03:38:25 Subscribing to channel rq:pubsub:27c3d581835e48ea935a56ea162422a2
+03:38:25 *** Listening on crawler_queue...
+03:44:42 Unsubscribing from channel rq:pubsub:27c3d581835e48ea935a56ea162422a2
+[Scheduler Thread] Started.[Worker] Starting worker on queue: 'crawler_queue'
+
+03:44:44 Worker rq:worker:a7d95cc93709497da8a6174903ae32ef started with PID 1, version 1.15.0
+03:44:44 Subscribing to channel rq:pubsub:a7d95cc93709497da8a6174903ae32ef
+03:44:44 *** Listening on crawler_queue...
+03:44:44 Cleaning registries for queue: crawler_queue
+03:51:02 Unsubscribing from channel rq:pubsub:a7d95cc93709497da8a6174903ae32ef
+[Scheduler Thread] Started.[Worker] Starting worker on queue: 'crawler_queue'
+
+03:51:03 Worker rq:worker:0d69acda92d34dd8a90fb11f5d93b7aa started with PID 1, version 1.15.0
+03:51:03 Subscribing to channel rq:pubsub:0d69acda92d34dd8a90fb11f5d93b7aa
+03:51:03 *** Listening on crawler_queue...
+03:57:21 Unsubscribing from channel rq:pubsub:0d69acda92d34dd8a90fb11f5d93b7aa
+[Scheduler Thread] Started.[Worker] Starting worker on queue: 'crawler_queue'
+
+03:57:32 Worker rq:worker:32ae68a3376a4d7a81964a1c7fdb914e started with PID 1, version 1.15.0
+03:57:32 Subscribing to channel rq:pubsub:32ae68a3376a4d7a81964a1c7fdb914e
+03:57:32 *** Listening on crawler_queue...
+04:03:40 Unsubscribing from channel rq:pubsub:32ae68a3376a4d7a81964a1c7fdb914e
+[Scheduler Thread] Started.[Worker] Starting worker on queue: 'crawler_queue'
+
+04:03:42 Worker rq:worker:9a442310b7a5473bb8fd07f631d74016 started with PID 1, version 1.15.0
+04:03:42 Subscribing to channel rq:pubsub:9a442310b7a5473bb8fd07f631d74016
+04:03:42 *** Listening on crawler_queue...
+04:03:42 Cleaning registries for queue: crawler_queue
+04:10:08 Unsubscribing from channel rq:pubsub:9a442310b7a5473bb8fd07f631d74016
+[Scheduler Thread] Started.[Worker] Starting worker on queue: 'crawler_queue'
+
+04:10:11 Worker rq:worker:96310c15e22544c0b3f6cda0e4422559 started with PID 1, version 1.15.0
+04:10:11 Subscribing to channel rq:pubsub:96310c15e22544c0b3f6cda0e4422559
+04:10:11 *** Listening on crawler_queue...
+04:16:19 Unsubscribing from channel rq:pubsub:96310c15e22544c0b3f6cda0e4422559
+[Scheduler Thread] Started.[Worker] Starting worker on queue: 'crawler_queue'
+
+04:16:20 Worker rq:worker:4ec9d4161b2846c89c488b9bcfaa420c started with PID 1, version 1.15.0
+04:16:20 Subscribing to channel rq:pubsub:4ec9d4161b2846c89c488b9bcfaa420c
+04:16:20 *** Listening on crawler_queue...
+04:22:38 Unsubscribing from channel rq:pubsub:4ec9d4161b2846c89c488b9bcfaa420c
+[Scheduler Thread] Started.[Worker] Starting worker on queue: 'crawler_queue'
+
+04:22:40 Worker rq:worker:ab6f91e7e5c9427d82b36a8abdce640b started with PID 1, version 1.15.0
+04:22:40 Subscribing to channel rq:pubsub:ab6f91e7e5c9427d82b36a8abdce640b
+04:22:40 *** Listening on crawler_queue...
+04:22:40 Cleaning registries for queue: crawler_queue

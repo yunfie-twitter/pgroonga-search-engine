@@ -46,20 +46,20 @@ class Indexer:
                 crawled_at = NOW(),
                 representative_image_id = EXCLUDED.representative_image_id,
                 search_text = EXCLUDED.search_text
+            RETURNING id
         """
 
         # 3. Page-Image Link Upsert
         sql_link_image = """
-            INSERT INTO page_images (page_url, image_id, alt_text, position)
+            INSERT INTO page_images (page_id, image_id, alt_text, position_order)
             VALUES (%s, (SELECT id FROM images WHERE file_hash = %s), %s, %s)
-            ON CONFLICT (page_url, image_id) DO UPDATE SET
+            ON CONFLICT (page_id, image_id) DO UPDATE SET
                 alt_text = EXCLUDED.alt_text,
-                position = EXCLUDED.position,
-                updated_at = NOW()
+                position_order = EXCLUDED.position_order
         """
 
         # 4. Cleanup old links
-        sql_delete_links = "DELETE FROM page_images WHERE page_url = %s"
+        sql_delete_links = "DELETE FROM page_images WHERE page_id = %s"
 
         try:
             with DBTransaction() as conn:
@@ -108,14 +108,15 @@ class Indexer:
                                 search_text_body,
                             ),
                         )
+                        page_id = cur.fetchone()[0]
 
                         # E. Sync Page-Image Links
-                        cur.execute(sql_delete_links, (page_url,))
+                        cur.execute(sql_delete_links, (page_id,))
                         for img in images:
                             cur.execute(
                                 sql_link_image,
                                 (
-                                    page_url,
+                                    page_id,
                                     img["hash"],
                                     img.get("alt"),
                                     img.get("position"),

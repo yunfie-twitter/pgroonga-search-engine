@@ -25,6 +25,13 @@ class LinkExtractor:
         Parses HTML and returns a list of unique, normalized, same-domain URLs.
         """
         soup = BeautifulSoup(html_content, 'html.parser')
+        return self.extract_links_from_soup(soup)
+
+    def extract_links_from_soup(self, soup: BeautifulSoup) -> List[str]:
+        """
+        Extracts links directly from a BeautifulSoup object.
+        Avoids re-parsing if the caller already has a soup object.
+        """
         links: Set[str] = set()
 
         for a_tag in soup.find_all('a', href=True):

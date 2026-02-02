@@ -24,109 +24,195 @@ class SearchService:
         self.expander = SynonymExpander(settings.SYNONYM_FILE_PATH)
         self.cache_manager = RedisCacheManager()
 
-    def execute_search(self, raw_query: str, filters: Dict[str, Any], limit: int) -> List[Dict[str, Any]]:
+    def execute_search(self, raw_query: str, filters: Dict[str, Any], limit: int) -> Dict[str, Any]:
         """
         Executes a search query with full pipeline processing.
-
-        Pipeline:
-        1. Normalize user query.
-        2. Expand query with synonyms.
-        3. Check Redis cache.
-        4. If miss, query PostgreSQL (PGroonga).
-        5. Generate snippets from content.
-        6. Cache results.
-
-        Args:
-            raw_query (str): The raw input query from the user.
-            filters (Dict): Filter parameters (category, date range).
-            limit (int): Maximum number of results.
-
-        Returns:
-            List[Dict]: Processed search results with snippets.
         """
         # 1. Normalization
         normalized_query = QueryNormalizer.normalize(raw_query)
 
-        # 2. Synonym Expansion
-        # Note: We use the expanded query for the DB search, but the normalized query
-        # for snippet generation and cache keys (to keep keys consistent across dictionary updates).
-        expanded_query = self.expander.expand(normalized_query)
+        # 2. Log Query (Async-like via DB)
+        search_id = self.log_search_query(raw_query, normalized_query)
 
-        # 3. Cache Lookup
-        cached_results = self.cache_manager.get_cached_result(normalized_query, filters, limit)
-        if cached_results is not None:
-            # Assuming cache returns the list of results directly.
-            # If cache manager returns a single dict but we expect a list, we might need to adjust.
-            # Based on the error "got: dict[Any, Any], expected: list[dict[str, Any]]",
-            # if cached_results IS a list, then mypy might be confused or the cache manager signature is wrong.
-            # However, looking at standard cache implementations, usually we cache the 'result set' (List).
-            # If the error persists, it implies get_cached_result might be returning Any or Dict.
-            # Cast or ensure it's a list.
-            if isinstance(cached_results, list):
-                 return cached_results
-            return [cached_results] # Wrap in list if it's a single object (though unlikely for search results)
+        # 3. Intent & Synonym Expansion
+        # First check explicit Intent Graph (High Precision)
+        intent_query = self.expand_query_intent(normalized_query)
+        # Then apply standard synonym expansion (if needed)
+        expanded_query = self.expander.expand(intent_query)
 
-        # 4. Database Search
-        # We fetch 'content' to generate snippets, but we won't return it fully to the client.
+        # 4. Cache Lookup (Skip for now as we changed return type structure. TODO: Update cache manager)
+        # cached_results = self.cache_manager.get_cached_result(normalized_query, filters, limit)
+        # if cached_results is not None and isinstance(cached_results, list):
+        #      return {"results": cached_results, "keywords": []} # Quick fix for cache compatibility
+
+        # 5. Database Search
         db_rows = self._query_database(expanded_query, filters, limit)
 
-        # 5. Result Processing & Snippet Generation
+        # 6. Result Processing & Snippet Generation
         processed_results = []
         for row in db_rows:
-            # Generate a relevant snippet based on the normalized query (what the user actually typed)
             snippet = SnippetGenerator.generate(row['content'], normalized_query)
-
-            # Construct the final result object
             result_item = {
                 "url": row['url'],
                 "title": row['title'],
                 "score": row['score'],
                 "snippet": snippet,
-                # 'content' is explicitly excluded from the final response to reduce payload
             }
+            if "img_url" in row:
+                result_item["img_url"] = row["img_url"]
             processed_results.append(result_item)
 
-        # 6. Cache Storage
-        self.cache_manager.set_cached_result(normalized_query, filters, limit, processed_results)
+        # 7. Keyword Extraction
+        keywords = self._extract_keywords(db_rows)
 
-        return processed_results
+        # 8. Cache Storage (TODO: Update cache manager to store full object)
+        # self.cache_manager.set_cached_result(normalized_query, filters, limit, processed_results)
+
+        return {
+            "search_id": search_id, # Return ID for click tracking
+            "results": processed_results,
+            "keywords": keywords,
+        }
+
+    def log_search_query(self, raw_query: str, normalized_query: str) -> str:
+        """
+        Logs the search query to the database and returns a generated Search ID.
+        """
+        sql = """
+            INSERT INTO search_logs (query, normalized_query)
+            VALUES (%s, %s)
+            RETURNING id
+        """
+        try:
+            with DBTransaction() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql, (raw_query, normalized_query))
+                    return str(cur.fetchone()[0])
+        except Exception as e:
+            print(f"Failed to log search query: {e}")
+            return ""
+
+    def log_click(self, search_id: str, url: str, rank: int) -> bool:
+        """
+        Logs a user click on a search result.
+        """
+        sql = """
+            INSERT INTO click_logs (search_log_id, url, rank)
+            VALUES (%s, %s, %s)
+        """
+        try:
+            with DBTransaction() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql, (search_id, url, rank))
+            return True
+        except Exception as e:
+            print(f"Failed to log click: {e}")
+            return False
+
+    def expand_query_intent(self, normalized_query: str) -> str:
+        """
+        Checks the Query Relations graph (Intent DB) for high-confidence expansions.
+        e.g. "学マス" -> "学園アイドルマスター"
+        """
+        sql = """
+            SELECT target_query, score
+            FROM query_relations
+            WHERE source_query = %s AND score >= 0.8
+            ORDER BY score DESC
+            LIMIT 1
+        """
+        try:
+            with DBTransaction() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql, (normalized_query,))
+                    res = cur.fetchone()
+                    if res:
+                        # Append the target query to the original query
+                        # e.g. "学マス" -> "学マス OR 学園アイドルマスター"
+                        return f"{normalized_query} OR {res[0]}"
+        except Exception:
+            pass
+        return normalized_query
 
     def _query_database(self, pgroonga_query: str, filters: Dict[str, Any], limit: int) -> List[Dict[str, Any]]:
         """
         Executes the raw SQL query against PostgreSQL using PGroonga.
         """
-        sql = """
+        select_clause = """
             SELECT
-                url,
-                title,
-                content,
-                pgroonga_score(tableoid, ctid) AS score
-            FROM web_pages
-            WHERE search_text &@ %s
+                web_pages.url,
+                web_pages.title,
+                web_pages.content,
+                pgroonga_score(web_pages.tableoid, web_pages.ctid) AS score
         """
+        
+        from_clause = "FROM web_pages"
+        
+        if filters.get("include_images"):
+            select_clause += ", images.canonical_url AS img_url"
+            from_clause += " LEFT JOIN images ON web_pages.representative_image_id = images.id"
+
+        where_clause = "WHERE web_pages.search_text &@ %s"
+        
         params: List[Union[str, int]] = [pgroonga_query]
 
         # Dynamic SQL construction for filters
         if "category" in filters:
-            sql += " AND category = %s"
+            where_clause += " AND web_pages.category = %s"
             params.append(str(filters["category"]))
 
+        if "domain" in filters:
+            where_clause += " AND web_pages.url LIKE %s"
+            params.append(f"%{filters['domain']}%")
+
         if "from" in filters:
-            sql += " AND published_at >= %s"
+            where_clause += " AND web_pages.published_at >= %s"
             params.append(str(filters["from"]))
 
         if "to" in filters:
-            sql += " AND published_at <= %s"
+            where_clause += " AND web_pages.published_at <= %s"
             params.append(str(filters["to"]))
 
         # Ordering and limiting
-        sql += " ORDER BY score DESC LIMIT %s"
+        order_clause = "ORDER BY score DESC LIMIT %s"
         params.append(limit)
+        
+        sql = f"{select_clause} {from_clause} {where_clause} {order_clause}"
 
         with DBTransaction() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(sql, tuple(params))
                 return [dict(row) for row in cur.fetchall()]
+
+    def _extract_keywords(self, rows: List[Dict[str, Any]]) -> List[str]:
+        """
+        Extracts frequent keywords from the titles of search results using PGroonga.
+        """
+        if not rows:
+            return []
+
+        # Concatenate titles
+        text_corpus = " ".join([row['title'] for row in rows])
+        # Truncate to avoid huge query payload
+        text_corpus = text_corpus[:5000]
+
+        sql = """
+            SELECT token, count(*) as freq
+            FROM pgroonga_tokenize(%s, 'TokenMecab') AS t(token text, start_offset int, end_offset int, force_prefix bool)
+            WHERE length(token) > 1
+            GROUP BY token
+            ORDER BY freq DESC
+            LIMIT 5
+        """
+        
+        try:
+             with DBTransaction() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(sql, (text_corpus,))
+                    return [row[0] for row in cur.fetchall()]
+        except Exception as e:
+            print(f"Keyword extraction failed: {e}")
+            return []
 
 
 @lru_cache()
