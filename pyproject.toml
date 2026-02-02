@@ -10,7 +10,7 @@ filterwarnings = [
     "ignore::UserWarning",
 ]
 
-[tool.ruff]
+[tool.ruff.lint]
 # Target Python version
 target-version = "py311"
 # Line length matching standard conventions
